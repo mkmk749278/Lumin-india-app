@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+      - "feat/**"
+      - "fix/**"
+      - "docs/**"
+      - "chore/**"
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs-and-hygiene:
+    name: Docs & secret hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Required operating docs present
+        run: |
+          if [ ! -f CLAUDE.md ]; then echo "::error::missing required doc CLAUDE.md"; exit 1; fi
+          echo "CLAUDE.md present"
+
+      - name: No committed keystore or credential material
+        run: |
+          # Match credential MATERIAL only — never env-var names. RAZORPAY_KEY_ID is
+          # public and lives in build config; RAZORPAY_KEY_SECRET must never be here.
+          pattern='-----BEGIN [A-Z ]*PRIVATE KEY-----|"private_key"[[:space:]]*:[[:space:]]*"-----BEGIN'
+          if grep -rInE "$pattern" --exclude-dir='.git' --exclude-dir='.github' . ; then
+            echo "::error::possible committed secret material — see matches above"
+            exit 1
+          fi
+          # Release keystores must never be committed (they belong in GitHub Secrets).
+          if find . -path ./.git -prune -o \( -name '*.jks' -o -name '*.keystore' \) -print | grep -q .; then
+            echo "::error::Android keystore committed — move to GitHub Secrets (KEYSTORE_FILE)"
+            exit 1
+          fi
+          echo "clean: no keystore or credential material found"
+
+  flutter:
+    name: Flutter analyze / test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect Flutter project
+        id: detect
+        run: echo "has_project=$([ -f pubspec.yaml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Flutter
+        if: steps.detect.outputs.has_project == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: pub get / analyze / test
+        if: steps.detect.outputs.has_project == 'true'
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
+      - name: No Flutter project yet
+        if: steps.detect.outputs.has_project == 'false'
+        run: echo "Docs-only repo so far — Flutter analyze/test activate automatically once pubspec.yaml lands."
