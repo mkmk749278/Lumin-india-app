@@ -1,0 +1,89 @@
+name: Build testing APK
+
+# Owner-testing builds only (Phase 1). Trigger manually from the Actions
+# tab; download the APK artifact on the phone and install it.
+#
+# The android/ platform directory is not committed — it is generated here
+# by `flutter create` (same pattern as the crypto app). Release signing,
+# keystores, and the Play App Bundle come with the Play Store launch
+# workflow later; this APK uses the default debug signing config.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Testing APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android platform directory
+        run: |
+          flutter create -t app --org=org.luminapp --platforms=android --project-name=lumin_india .
+          # flutter create drops a default counter-app test that references
+          # a MyApp widget this project doesn't have — remove it.
+          rm -f test/widget_test.dart
+
+      - name: Patch manifest — INTERNET permission + cleartext HTTP
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          python3 - "$M" <<'EOF'
+          import sys
+
+          path = sys.argv[1]
+          content = open(path).read()
+
+          # Release manifests omit INTERNET by default; the app is useless
+          # without it.
+          if 'android.permission.INTERNET' not in content:
+              content = content.replace(
+                  '<application',
+                  '<uses-permission android:name="android.permission.INTERNET"/>\n'
+                  '    <application',
+                  1,
+              )
+
+          # TEMPORARY: the engine API is plain HTTP on the VPS IP until the
+          # domain + Cloudflare TLS land. Remove this patch step at that point.
+          if 'usesCleartextTraffic' not in content:
+              content = content.replace(
+                  '<application',
+                  '<application android:usesCleartextTraffic="true"',
+                  1,
+              )
+
+          open(path, 'w').write(content)
+          print('manifest patched')
+          EOF
+
+      - name: Build APK
+        run: |
+          flutter pub get
+          flutter build apk --release \
+            --dart-define=INDIA_API_BASE_URL=http://95.111.241.97 \
+            --dart-define=INDIA_API_TOKEN="${{ secrets.INDIA_API_TOKEN }}"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumin-india-testing-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+          if-no-files-found: error
