@@ -5,7 +5,7 @@
 ///
 ///   flutter run \
 ///     --dart-define=INDIA_API_BASE_URL=http://95.111.241.97 \
-///     --dart-define=INDIA_API_TOKEN=<owner token>
+///     --dart-define=INDIA_API_TOKEN=OWNER_TOKEN
 ///
 /// The static Bearer token is the Phase-1 owner-testing auth. Firebase
 /// Phone Auth replaces it for subscribers once the Firebase project
