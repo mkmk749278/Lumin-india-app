@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/signals/signals_page.dart';
+import 'app/nav_shell.dart';
 import 'theme.dart';
 
 void main() {
@@ -17,7 +17,7 @@ class LuminIndiaApp extends StatelessWidget {
       title: 'Lumin India',
       debugShowCheckedModeBanner: false,
       theme: buildLuminIndiaTheme(),
-      home: const SignalsPage(),
+      home: const NavShell(),
     );
   }
 }
