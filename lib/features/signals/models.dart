@@ -93,11 +93,16 @@ class EnginePulse {
     required this.sessionState,
     required this.signalsToday,
     required this.uptimeSeconds,
+    this.autoExecution = false,
   });
 
   final String sessionState;
   final int signalsToday;
   final int uptimeSeconds;
+
+  /// Phase 2 flag from the engine. Gates the Auto-Trade settings screen —
+  /// it stays "Coming Soon" until the engine reports true.
+  final bool autoExecution;
 
   bool get isOpen => sessionState == 'OPEN';
 
@@ -105,5 +110,6 @@ class EnginePulse {
         sessionState: _asString(json['session_state']),
         signalsToday: _asInt(json['signals_today']),
         uptimeSeconds: _asInt(json['uptime_seconds']),
+        autoExecution: json['auto_execution'] == true,
       );
 }
