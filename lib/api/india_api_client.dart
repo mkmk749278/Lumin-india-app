@@ -17,6 +17,16 @@ import '../features/signals/models.dart';
 class IndiaApiClient {
   IndiaApiClient({Dio? dio}) : _dio = dio ?? _buildDio();
 
+  /// True when the engine actively rejected us (401/403) — a build/token
+  /// problem, not a network problem. The UI words these differently.
+  static bool isAuthError(Object? error) {
+    if (error is DioException) {
+      final code = error.response?.statusCode;
+      return code == 401 || code == 403;
+    }
+    return false;
+  }
+
   final Dio _dio;
 
   static Dio _buildDio() {

@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../api/india_api_client.dart' show IndiaApiClient;
 import '../../config.dart';
 import '../../shared/tokens.dart';
 import 'session_bar.dart';
@@ -57,7 +58,11 @@ class _SignalsPageState extends ConsumerState<SignalsPage> {
       appBar: AppBar(title: const Text('LUMIN INDIA')),
       body: Column(
         children: [
-          SessionBar(pulse: pulse.valueOrNull, error: pulse.hasError),
+          SessionBar(
+            pulse: pulse.valueOrNull,
+            error: pulse.hasError,
+            authError: IndiaApiClient.isAuthError(pulse.error),
+          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _refresh,
@@ -84,7 +89,10 @@ class _SignalsPageState extends ConsumerState<SignalsPage> {
                 loading: () => const Center(
                   child: CircularProgressIndicator(color: LuminColors.accent),
                 ),
-                error: (e, _) => _ErrorFeed(onRetry: _refresh),
+                error: (e, _) => _ErrorFeed(
+                  onRetry: _refresh,
+                  authError: IndiaApiClient.isAuthError(e),
+                ),
               ),
             ),
           ),
@@ -125,24 +133,50 @@ class _EmptyFeed extends StatelessWidget {
 }
 
 class _ErrorFeed extends StatelessWidget {
-  const _ErrorFeed({required this.onRetry});
+  const _ErrorFeed({required this.onRetry, this.authError = false});
 
   final Future<void> Function() onRetry;
+  final bool authError;
 
   @override
   Widget build(BuildContext context) {
+    final title = authError
+        ? 'Access denied by the engine'
+        : 'Could not reach the signal engine';
+    final hint = authError
+        ? 'This APK was built without a valid API token.\n'
+            'Add the INDIA_API_TOKEN repo secret, run the\n'
+            '"Build testing APK" workflow again, and reinstall.'
+        : null;
+
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         const SizedBox(height: 120),
-        const Icon(Icons.cloud_off, size: 48, color: LuminColors.textMuted),
+        Icon(
+          authError ? Icons.key_off : Icons.cloud_off,
+          size: 48,
+          color: LuminColors.textMuted,
+        ),
         const SizedBox(height: LuminSpacing.lg),
-        const Center(
+        Center(
           child: Text(
-            'Could not reach the signal engine',
-            style: TextStyle(color: LuminColors.textSecondary, fontSize: 16),
+            title,
+            style: const TextStyle(
+                color: LuminColors.textSecondary, fontSize: 16),
           ),
         ),
+        if (hint != null) ...[
+          const SizedBox(height: LuminSpacing.sm),
+          Center(
+            child: Text(
+              hint,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: LuminColors.textMuted, fontSize: 13, height: 1.5),
+            ),
+          ),
+        ],
         const SizedBox(height: LuminSpacing.lg),
         Center(
           child: OutlinedButton(

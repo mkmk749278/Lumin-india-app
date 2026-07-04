@@ -77,4 +77,12 @@ void main() {
     await tester.pumpWidget(_wrap(const SessionBar(error: true)));
     expect(find.text('Engine unreachable'), findsOneWidget);
   });
+
+  testWidgets('SessionBar distinguishes auth rejection from network error',
+      (tester) async {
+    await tester
+        .pumpWidget(_wrap(const SessionBar(error: true, authError: true)));
+    expect(find.textContaining('Access denied'), findsOneWidget);
+    expect(find.text('Engine unreachable'), findsNothing);
+  });
 }
