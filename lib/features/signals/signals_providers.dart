@@ -1,4 +1,4 @@
-/// Riverpod providers — API client, engine pulse, signal feed.
+/// Riverpod providers — API client, engine pulse, signal feed, quality window.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,4 +14,12 @@ final pulseProvider = FutureProvider<EnginePulse>(
 
 final signalsProvider = FutureProvider<List<IndiaSignal>>(
   (ref) => ref.watch(apiClientProvider).signals(),
+);
+
+final outcomesProvider = FutureProvider<List<SignalOutcome>>(
+  (ref) => ref.watch(apiClientProvider).outcomes(limit: 100),
+);
+
+final sessionSummariesProvider = FutureProvider<List<SessionSummary>>(
+  (ref) => ref.watch(apiClientProvider).sessionSummaries(limit: 30),
 );
