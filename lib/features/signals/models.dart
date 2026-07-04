@@ -126,7 +126,7 @@ class SessionSummary {
   static Map<String, int> _decodeGates(dynamic raw) {
     Map<String, dynamic> map = const {};
     if (raw is Map) {
-      map = Map<String, dynamic>.from(raw as Map);
+      map = Map<String, dynamic>.from(raw);
     } else if (raw is String && raw.isNotEmpty) {
       try {
         final decoded = json.decode(raw);

@@ -170,9 +170,9 @@ class _OutcomesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (outcomes.isEmpty) {
-      return _Card(
+      return const _Card(
         label: 'TODAY\'S OUTCOMES',
-        child: const Text(
+        child: Text(
           'No resolved outcomes yet today',
           style: TextStyle(color: LuminColors.textMuted, fontSize: 13),
         ),
@@ -213,9 +213,9 @@ class _OutcomesCard extends StatelessWidget {
           const SizedBox(height: LuminSpacing.md),
           Row(
             children: [
-              Text(
+              const Text(
                 'Net points',
-                style: const TextStyle(
+                style: TextStyle(
                   color: LuminColors.textMuted,
                   fontSize: 12,
                 ),
@@ -320,9 +320,9 @@ class _QualityWindowCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (summaries.isEmpty) {
-      return _Card(
+      return const _Card(
         label: '30-DAY QUALITY WINDOW',
-        child: const Text(
+        child: Text(
           'First session summary written at 15:30 IST on the first trading day',
           style: TextStyle(color: LuminColors.textMuted, fontSize: 13),
         ),
