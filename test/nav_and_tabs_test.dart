@@ -33,11 +33,15 @@ IndiaSignal _todaySignal({String tier = 'A+', String direction = 'LONG'}) {
 }
 
 Widget _wrap(Widget child, {EnginePulse pulse = _pulseClosed,
-    List<IndiaSignal> signals = const []}) {
+    List<IndiaSignal> signals = const [],
+    List<SignalOutcome> outcomes = const [],
+    List<SessionSummary> summaries = const []}) {
   return ProviderScope(
     overrides: [
       pulseProvider.overrideWith((ref) => Future.value(pulse)),
       signalsProvider.overrideWith((ref) => Future.value(signals)),
+      outcomesProvider.overrideWith((ref) => Future.value(outcomes)),
+      sessionSummariesProvider.overrideWith((ref) => Future.value(summaries)),
     ],
     child: MaterialApp(theme: buildLuminIndiaTheme(), home: child),
   );
@@ -65,25 +69,20 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('SessionPage computes per-tier and direction breakdown',
+  testWidgets('SessionPage shows open state, signal count and empty outcomes',
       (tester) async {
-    final signals = [
-      _todaySignal(tier: 'A+', direction: 'LONG'),
-      _todaySignal(tier: 'B', direction: 'SHORT'),
-    ];
     const pulse = EnginePulse(
       sessionState: 'OPEN',
       signalsToday: 2,
       uptimeSeconds: 600,
     );
 
-    await tester.pumpWidget(
-        _wrap(const SessionPage(), pulse: pulse, signals: signals));
+    await tester.pumpWidget(_wrap(const SessionPage(), pulse: pulse));
     await tester.pump();
 
     expect(find.text('MARKET OPEN'), findsOneWidget);
-    expect(find.text('2'), findsOneWidget); // signals today
-    expect(find.text('1 / 1'), findsOneWidget); // long / short
+    expect(find.text('2'), findsOneWidget); // signalsToday from pulse
+    expect(find.text('No resolved outcomes yet today'), findsOneWidget);
   });
 
   testWidgets('SettingsPage shows engine status and version',
