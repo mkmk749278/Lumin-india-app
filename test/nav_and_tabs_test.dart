@@ -15,22 +15,6 @@ const _pulseClosed = EnginePulse(
   uptimeSeconds: 7500,
 );
 
-IndiaSignal _todaySignal({String tier = 'A+', String direction = 'LONG'}) {
-  final now = DateTime.now();
-  final ts = '${now.year.toString().padLeft(4, '0')}-'
-      '${now.month.toString().padLeft(2, '0')}-'
-      '${now.day.toString().padLeft(2, '0')} 10:00:00';
-  return IndiaSignal.fromJson({
-    'signal_id': 'sig-$tier-$direction',
-    'base': 'NIFTY',
-    'direction': direction,
-    'tier': tier,
-    'entry': 24500.0,
-    'sl': 24400.0,
-    'tp1': 24700.0,
-    'created_at': ts,
-  });
-}
 
 Widget _wrap(Widget child, {EnginePulse pulse = _pulseClosed,
     List<IndiaSignal> signals = const [],
