@@ -1,10 +1,12 @@
 /// HTTP client for the Lumin India engine API.
 ///
 /// Endpoints (lumina-india-engine `src/api/server.py`):
-///   GET /api/health        — liveness (no auth)
-///   GET /api/pulse         — session state, signal count
-///   GET /api/signals       — signal list (filters: date, tier, limit)
-///   GET /api/signals/{id}  — single signal
+///   GET /api/health           — liveness (no auth)
+///   GET /api/pulse            — session state, signal count
+///   GET /api/signals          — signal list (filters: date, tier, limit)
+///   GET /api/signals/{id}     — single signal
+///   GET /api/outcomes         — TP1/SL/EXPIRED outcomes joined onto signals
+///   GET /api/session-summary  — 30-day daily quality ledger
 ///
 /// Auth: static Bearer token in Phase 1 owner testing (see AppConfig).
 library;
@@ -64,6 +66,31 @@ class IndiaApiClient {
   Future<IndiaSignal> signalById(String id) async {
     final resp = await _dio.get<Map<String, dynamic>>('/api/signals/$id');
     return IndiaSignal.fromJson(resp.data ?? const {});
+  }
+
+  Future<List<SignalOutcome>> outcomes({String? date, int limit = 100}) async {
+    final resp = await _dio.get<List<dynamic>>(
+      '/api/outcomes',
+      queryParameters: {
+        if (date != null) 'date': date,
+        'limit': limit,
+      },
+    );
+    return (resp.data ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(SignalOutcome.fromJson)
+        .toList();
+  }
+
+  Future<List<SessionSummary>> sessionSummaries({int limit = 30}) async {
+    final resp = await _dio.get<List<dynamic>>(
+      '/api/session-summary',
+      queryParameters: {'limit': limit},
+    );
+    return (resp.data ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(SessionSummary.fromJson)
+        .toList();
   }
 }
 

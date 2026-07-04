@@ -57,6 +57,139 @@ void main() {
     });
   });
 
+  group('SessionSummary.fromJson', () {
+    test('parses a full summary row', () {
+      final s = SessionSummary.fromJson({
+        'date': '2026-07-07',
+        'signal_count': 4,
+        'a_plus_count': 2,
+        'b_count': 2,
+        'avg_confidence': 79.5,
+        'total_suppressed': 12,
+        'gates_fired': '{"cooldown_gate": 8, "min_atr_gate": 4}',
+        'tp1_count': 3,
+        'sl_count': 1,
+        'expired_count': 0,
+        'total_points': 120.0,
+      });
+
+      expect(s.date, '2026-07-07');
+      expect(s.signalCount, 4);
+      expect(s.aPlusCount, 2);
+      expect(s.tp1Count, 3);
+      expect(s.slCount, 1);
+      expect(s.expiredCount, 0);
+      expect(s.totalPoints, 120.0);
+      expect(s.resolvedCount, 4);
+      expect(s.winRate, closeTo(75.0, 0.01));
+      expect(s.gatesFired['cooldown_gate'], 8);
+      expect(s.gatesFired['min_atr_gate'], 4);
+    });
+
+    test('parses gates_fired when already a map', () {
+      final s = SessionSummary.fromJson({
+        'date': '2026-07-07',
+        'signal_count': 1,
+        'a_plus_count': 0,
+        'b_count': 1,
+        'avg_confidence': 70.0,
+        'total_suppressed': 3,
+        'gates_fired': {'cooldown_gate': 3},
+        'tp1_count': 0,
+        'sl_count': 1,
+        'expired_count': 0,
+        'total_points': -50.0,
+      });
+
+      expect(s.gatesFired['cooldown_gate'], 3);
+      expect(s.hasOutcomes, true);
+      expect(s.winRate, 0.0);
+    });
+
+    test('empty day has zeroes and no outcomes', () {
+      final s = SessionSummary.fromJson({
+        'date': '2026-07-07',
+        'signal_count': 0,
+        'a_plus_count': 0,
+        'b_count': 0,
+        'avg_confidence': 0.0,
+        'total_suppressed': 0,
+        'gates_fired': '{}',
+        'tp1_count': 0,
+        'sl_count': 0,
+        'expired_count': 0,
+        'total_points': 0.0,
+      });
+
+      expect(s.hasOutcomes, false);
+      expect(s.resolvedCount, 0);
+      expect(s.gatesFired, isEmpty);
+    });
+  });
+
+  group('SignalOutcome.fromJson', () {
+    test('parses a TP1_HIT outcome', () {
+      final o = SignalOutcome.fromJson({
+        'signal_id': 'sig-LONG',
+        'outcome': 'TP1_HIT',
+        'exit_price': 24700.0,
+        'points': 100.0,
+        'resolved_at': '2026-07-07 11:30:00',
+        'symbol': 'NSE:NIFTY26JULFUT-FF',
+        'base': 'NIFTY',
+        'direction': 'LONG',
+        'setup_class': 'ORB',
+        'tier': 'A+',
+        'entry': 24600.0,
+        'sl': 24500.0,
+        'tp1': 24700.0,
+        'emitted_at': '2026-07-07 09:30:00',
+      });
+
+      expect(o.isWin, true);
+      expect(o.isLoss, false);
+      expect(o.isExpired, false);
+      expect(o.points, 100.0);
+      expect(o.base, 'NIFTY');
+    });
+
+    test('parses a SL_HIT outcome', () {
+      final o = SignalOutcome.fromJson({
+        'signal_id': 'sig-SHORT',
+        'outcome': 'SL_HIT',
+        'exit_price': 50200.0,
+        'points': -60.0,
+        'resolved_at': '2026-07-07 13:00:00',
+        'symbol': 'NSE:BANKNIFTY26JULFUT-FF',
+        'base': 'BANKNIFTY',
+        'direction': 'SHORT',
+        'setup_class': 'TPE',
+        'tier': 'B',
+        'entry': 50150.0,
+        'sl': 50250.0,
+        'tp1': 49950.0,
+      });
+
+      expect(o.isWin, false);
+      expect(o.isLoss, true);
+      expect(o.points, -60.0);
+    });
+
+    test('tolerates missing optional fields', () {
+      final o = SignalOutcome.fromJson({
+        'signal_id': 'sig-001',
+        'outcome': 'EXPIRED',
+        'exit_price': 0.0,
+        'points': 0.0,
+        'resolved_at': '2026-07-07 15:30:00',
+      });
+
+      expect(o.isExpired, true);
+      expect(o.base, '');
+      expect(o.emittedAt, isNull);
+    });
+  });
+
   group('EnginePulse.fromJson', () {
     test('parses pulse payload', () {
       final pulse = EnginePulse.fromJson(const {
