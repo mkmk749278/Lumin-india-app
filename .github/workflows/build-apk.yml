@@ -41,7 +41,7 @@ jobs:
           # a MyApp widget this project doesn't have — remove it.
           rm -f test/widget_test.dart
 
-      - name: Patch manifest — INTERNET permission + cleartext HTTP
+      - name: Patch manifest — INTERNET permission
         run: |
           M=android/app/src/main/AndroidManifest.xml
           python3 - "$M" <<'EOF'
@@ -60,15 +60,6 @@ jobs:
                   1,
               )
 
-          # TEMPORARY: the engine API is plain HTTP on the VPS IP until the
-          # domain + Cloudflare TLS land. Remove this patch step at that point.
-          if 'usesCleartextTraffic' not in content:
-              content = content.replace(
-                  '<application',
-                  '<application android:usesCleartextTraffic="true"',
-                  1,
-              )
-
           open(path, 'w').write(content)
           print('manifest patched')
           EOF
@@ -77,7 +68,7 @@ jobs:
         run: |
           flutter pub get
           flutter build apk --release \
-            --dart-define=INDIA_API_BASE_URL=http://95.111.241.97 \
+            --dart-define=INDIA_API_BASE_URL=https://lumintrade.app \
             --dart-define=INDIA_API_TOKEN="${{ secrets.INDIA_API_TOKEN }}"
 
       - name: Upload APK artifact

@@ -17,7 +17,7 @@ class AppConfig {
 
   static const String apiBaseUrl = String.fromEnvironment(
     'INDIA_API_BASE_URL',
-    defaultValue: 'http://95.111.241.97',
+    defaultValue: 'https://lumintrade.app',
   );
 
   static const String apiToken = String.fromEnvironment('INDIA_API_TOKEN');

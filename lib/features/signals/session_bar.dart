@@ -7,10 +7,18 @@ import '../../shared/tokens.dart';
 import 'models.dart';
 
 class SessionBar extends StatelessWidget {
-  const SessionBar({super.key, this.pulse, this.error = false});
+  const SessionBar({
+    super.key,
+    this.pulse,
+    this.error = false,
+    this.authError = false,
+  });
 
   final EnginePulse? pulse;
   final bool error;
+
+  /// Engine rejected the request (401/403) — token problem, not network.
+  final bool authError;
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +26,9 @@ class SessionBar extends StatelessWidget {
     final Color dotColor;
 
     if (error) {
-      label = 'Engine unreachable';
+      label = authError
+          ? 'Access denied — APK built without a valid API token'
+          : 'Engine unreachable';
       dotColor = LuminColors.loss;
     } else if (pulse == null) {
       label = 'Connecting…';
