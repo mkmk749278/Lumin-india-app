@@ -41,6 +41,60 @@ jobs:
           # a MyApp widget this project doesn't have — remove it.
           rm -f test/widget_test.dart
 
+      - name: Write google-services.json from secret
+        run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+
+      - name: Patch Android project for Firebase
+        run: |
+          python3 - <<'PYEOF'
+          import re
+
+          # --- project-level build.gradle: add google-services classpath ---
+          proj = 'android/build.gradle'
+          content = open(proj).read()
+          if 'com.google.gms:google-services' not in content:
+              content = content.replace(
+                  'buildscript {',
+                  'buildscript {\n'
+                  '    dependencies {\n'
+                  '        classpath "com.google.gms:google-services:4.4.2"\n'
+                  '    }',
+                  1,
+              )
+              open(proj, 'w').write(content)
+              print(f'patched {proj}: added google-services classpath')
+
+          # --- app-level build.gradle: apply plugin + set minSdk 26 ---
+          app = 'android/app/build.gradle'
+          content = open(app).read()
+
+          if "apply plugin: 'com.google.gms.google-services'" not in content:
+              # Add after the existing apply plugin line
+              content = content.replace(
+                  "apply plugin: 'com.android.application'",
+                  "apply plugin: 'com.android.application'\n"
+                  "apply plugin: 'com.google.gms.google-services'",
+                  1,
+              )
+              print(f'patched {app}: applied google-services plugin')
+
+          # Set minSdk to 26 (API 26+, per CLAUDE.md)
+          content = re.sub(
+              r'minSdk\s*=?\s*flutter\.minSdkVersion',
+              'minSdk = 26',
+              content,
+          )
+          # Also handle minSdkVersion form
+          content = re.sub(
+              r'minSdkVersion\s+flutter\.minSdkVersion',
+              'minSdkVersion 26',
+              content,
+          )
+
+          open(app, 'w').write(content)
+          print(f'patched {app}: minSdk=26')
+          PYEOF
+
       - name: Patch manifest — INTERNET permission
         run: |
           M=android/app/src/main/AndroidManifest.xml
