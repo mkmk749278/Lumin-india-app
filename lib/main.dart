@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'api/india_api_client.dart';
 import 'app/nav_shell.dart';
 import 'features/auth/phone_auth_page.dart';
+import 'features/signals/signals_providers.dart';
 import 'services/fcm_service.dart';
 import 'shared/tokens.dart';
 import 'theme.dart';
@@ -37,14 +38,14 @@ class LuminIndiaApp extends StatelessWidget {
 ///
 /// FCM init is deferred until the user is authenticated so the device
 /// token is registered with the user's Firebase UID.
-class _AuthGate extends StatefulWidget {
+class _AuthGate extends ConsumerStatefulWidget {
   const _AuthGate();
 
   @override
-  State<_AuthGate> createState() => _AuthGateState();
+  ConsumerState<_AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState extends State<_AuthGate> {
+class _AuthGateState extends ConsumerState<_AuthGate> {
   bool _fcmInitialized = false;
 
   Future<void> _initFcm() async {
@@ -52,7 +53,16 @@ class _AuthGateState extends State<_AuthGate> {
     _fcmInitialized = true;
     final user = FirebaseAuth.instance.currentUser;
     final api = IndiaApiClient();
-    final fcm = FcmService(api, uid: user?.uid ?? '');
+    final fcm = FcmService(
+      api,
+      uid: user?.uid ?? '',
+      onSignalTapped: (signalId) {
+        ref.read(pendingSignalIdProvider.notifier).state = signalId;
+      },
+      onForegroundMessage: (notif) {
+        ref.read(fcmForegroundProvider.notifier).state = notif;
+      },
+    );
     await fcm.init();
   }
 
