@@ -82,14 +82,21 @@ jobs:
                   )
                   print(f'patched {app}: applied google-services plugin')
 
-              # Set minSdk = 26 (KTS uses assignment syntax)
+              # Set minSdk = 26 and fix applicationId to match Firebase registration
               content = re.sub(
                   r'minSdk\s*=\s*flutter\.minSdkVersion',
                   'minSdk = 26',
                   content,
               )
+              # flutter create uses --org/--project-name for applicationId but
+              # Firebase has com.luminapp.india registered — override to match.
+              content = re.sub(
+                  r'applicationId\s*=\s*"[^"]*"',
+                  'applicationId = "com.luminapp.india"',
+                  content,
+              )
               open(app, 'w').write(content)
-              print(f'patched {app}: minSdk=26')
+              print(f'patched {app}: minSdk=26, applicationId=com.luminapp.india')
 
           else:
               # --- Groovy: project-level build.gradle ---
@@ -128,8 +135,14 @@ jobs:
                   'minSdkVersion 26',
                   content,
               )
+              # Override applicationId to match Firebase registration
+              content = re.sub(
+                  r'applicationId\s+"[^"]*"',
+                  'applicationId "com.luminapp.india"',
+                  content,
+              )
               open(app, 'w').write(content)
-              print(f'patched {app}: minSdk=26')
+              print(f'patched {app}: minSdk=26, applicationId=com.luminapp.india')
           PYEOF
 
       - name: Patch manifest — INTERNET permission
