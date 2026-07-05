@@ -10,9 +10,9 @@ name: Release APK
 #   INDIA_API_TOKEN        — static API bearer token
 #   KEYSTORE_BASE64        — base64-encoded .jks keystore
 #   KEYSTORE_PASSWORD      — keystore password
-#   KEY_ALIAS              — key alias (e.g. lumin-india)
+#   KEY_ALIAS              — key alias
 #   KEY_PASSWORD           — key password
-#   GH_PAT                 — personal access token with repo scope (for creating releases)
+# Uses GITHUB_TOKEN (auto-available) to create releases — no PAT needed.
 
 on:
   push:
@@ -95,4 +95,4 @@ jobs:
 
             **Firebase Phone Auth:** This APK is signed with the release keystore — use the real OTP, no test numbers needed.
           files: lumin-india-${{ steps.version.outputs.version }}.apk
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
