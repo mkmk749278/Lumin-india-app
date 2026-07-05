@@ -1,17 +1,16 @@
 /// HTTP client for the Lumin India engine API.
 ///
-/// Endpoints (lumina-india-engine `src/api/server.py`):
-///   GET /api/health           — liveness (no auth)
-///   GET /api/pulse            — session state, signal count
-///   GET /api/signals          — signal list (filters: date, tier, limit)
-///   GET /api/signals/{id}     — single signal
-///   GET /api/outcomes         — TP1/SL/EXPIRED outcomes joined onto signals
-///   GET /api/session-summary  — 30-day daily quality ledger
+/// Auth: Firebase ID token as Bearer header. The token is fetched fresh
+/// from FirebaseAuth on each request (1-hour TTL, auto-refreshed by
+/// FlutterFire). On 401: force-refreshes the token, retries once, then
+/// gives up (the auth gate catches the signed-out state).
 ///
-/// Auth: static Bearer token in Phase 1 owner testing (see AppConfig).
+/// Falls back to the static INDIA_API_TOKEN for owner testing when no
+/// Firebase user is signed in.
 library;
 
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../config.dart';
 import '../features/signals/models.dart';
@@ -19,8 +18,6 @@ import '../features/signals/models.dart';
 class IndiaApiClient {
   IndiaApiClient({Dio? dio}) : _dio = dio ?? _buildDio();
 
-  /// True when the engine actively rejected us (401/403) — a build/token
-  /// problem, not a network problem. The UI words these differently.
   static bool isAuthError(Object? error) {
     if (error is DioException) {
       final code = error.response?.statusCode;
@@ -37,12 +34,9 @@ class IndiaApiClient {
         baseUrl: AppConfig.apiBaseUrl,
         connectTimeout: const Duration(seconds: 8),
         receiveTimeout: const Duration(seconds: 15),
-        headers: {
-          if (AppConfig.apiToken.isNotEmpty)
-            'Authorization': 'Bearer ${AppConfig.apiToken}',
-        },
       ),
     );
+    dio.interceptors.add(_FirebaseAuthInterceptor());
     dio.interceptors.add(_RetryOnceInterceptor(dio));
     return dio;
   }
@@ -101,8 +95,58 @@ class IndiaApiClient {
   }
 }
 
-/// Retries a request exactly once on connection-level failures
-/// (mobile networks drop; a signal feed should not error on one blip).
+/// Injects the Firebase ID token (or static fallback) as a Bearer header.
+class _FirebaseAuthInterceptor extends Interceptor {
+  @override
+  void onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final forceRefresh = options.extra['_force_refresh_token'] == true;
+      try {
+        final idToken = await user.getIdToken(forceRefresh);
+        if (idToken != null) {
+          options.headers['Authorization'] = 'Bearer $idToken';
+          return handler.next(options);
+        }
+      } catch (_) {
+        // Fall through to static token
+      }
+    }
+
+    if (AppConfig.apiToken.isNotEmpty) {
+      options.headers['Authorization'] = 'Bearer ${AppConfig.apiToken}';
+    }
+    handler.next(options);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
+    if (err.response?.statusCode == 401 &&
+        err.requestOptions.extra['_auth_retried'] != true) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        err.requestOptions.extra['_auth_retried'] = true;
+        err.requestOptions.extra['_force_refresh_token'] = true;
+        try {
+          final idToken = await user.getIdToken(true);
+          if (idToken != null) {
+            err.requestOptions.headers['Authorization'] = 'Bearer $idToken';
+            final resp = await Dio().fetch<dynamic>(err.requestOptions);
+            return handler.resolve(resp);
+          }
+        } catch (_) {
+          // Fall through to original error
+        }
+      }
+    }
+    handler.next(err);
+  }
+}
+
+/// Retries a request exactly once on connection-level failures.
 class _RetryOnceInterceptor extends Interceptor {
   _RetryOnceInterceptor(this._dio);
 
