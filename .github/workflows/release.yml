@@ -66,6 +66,13 @@ jobs:
           keyAlias=${{ secrets.KEY_ALIAS }}
           storeFile=lumin-india.jks
           EOF
+          # Print fingerprints — copy SHA1 + SHA256 to Firebase Console
+          # (Project Settings → Your apps → com.luminapp.india → Add fingerprint)
+          keytool -list -v \
+            -keystore android/lumin-india.jks \
+            -alias "${{ secrets.KEY_ALIAS }}" \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            2>/dev/null | grep -E 'SHA1:|SHA256:' || true
 
       - name: Patch Android project
         run: python3 .github/scripts/patch_android.py

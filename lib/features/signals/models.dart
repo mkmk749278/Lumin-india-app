@@ -209,6 +209,22 @@ class SignalOutcome {
       );
 }
 
+/// FCM foreground notification data — shown as an in-app banner.
+/// Never includes price targets (CLAUDE.md hard limit).
+class FcmForegroundNotif {
+  const FcmForegroundNotif({
+    required this.signalId,
+    required this.symbol,
+    required this.direction,
+    required this.tier,
+  });
+
+  final String signalId;
+  final String symbol;
+  final String direction;
+  final String tier;
+}
+
 class EnginePulse {
   const EnginePulse({
     required this.sessionState,

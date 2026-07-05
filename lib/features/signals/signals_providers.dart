@@ -23,3 +23,9 @@ final outcomesProvider = FutureProvider<List<SignalOutcome>>(
 final sessionSummariesProvider = FutureProvider<List<SessionSummary>>(
   (ref) => ref.watch(apiClientProvider).sessionSummaries(limit: 30),
 );
+
+/// Signal ID waiting for deep-link navigation after a notification tap.
+final pendingSignalIdProvider = StateProvider<String?>((ref) => null);
+
+/// Foreground FCM notification waiting to be shown as an in-app banner.
+final fcmForegroundProvider = StateProvider<FcmForegroundNotif?>((ref) => null);
