@@ -21,9 +21,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 class FcmService {
-  FcmService(this._api);
+  FcmService(this._api, {this.uid = ''});
 
   final IndiaApiClient _api;
+  final String uid;
 
   Future<void> init() async {
     final messaging = FirebaseMessaging.instance;
@@ -51,7 +52,7 @@ class FcmService {
 
   Future<void> _registerToken(String token) async {
     try {
-      await _api.registerFcmToken(token);
+      await _api.registerFcmToken(token, uid: uid);
       debugPrint('FCM token registered with engine');
     } catch (e) {
       debugPrint('FCM token registration failed: $e');

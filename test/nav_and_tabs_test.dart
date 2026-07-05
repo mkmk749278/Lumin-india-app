@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumin_india/app/nav_shell.dart';
+import 'package:lumin_india/features/auth/auth_providers.dart';
 import 'package:lumin_india/features/session/session_page.dart';
 import 'package:lumin_india/features/settings/auto_trade_page.dart';
 import 'package:lumin_india/features/settings/settings_page.dart';
@@ -26,6 +27,8 @@ Widget _wrap(Widget child, {EnginePulse pulse = _pulseClosed,
       signalsProvider.overrideWith((ref) => Future.value(signals)),
       outcomesProvider.overrideWith((ref) => Future.value(outcomes)),
       sessionSummariesProvider.overrideWith((ref) => Future.value(summaries)),
+      currentPhoneProvider.overrideWithValue('+919876543210'),
+      signOutProvider.overrideWithValue(() => Future<void>.value()),
     ],
     child: MaterialApp(theme: buildLuminIndiaTheme(), home: child),
   );

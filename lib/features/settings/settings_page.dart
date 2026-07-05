@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/tokens.dart';
+import '../auth/auth_providers.dart';
 import '../signals/signals_providers.dart';
 import 'auto_trade_page.dart';
 
@@ -71,6 +72,18 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           const Divider(color: LuminColors.bgElevated, height: 1),
+          ListTile(
+            leading: const Icon(
+              Icons.person_outline,
+              color: LuminColors.textSecondary,
+            ),
+            title: const Text('Account'),
+            subtitle: Text(
+              ref.watch(currentPhoneProvider),
+              style: const TextStyle(color: LuminColors.textMuted),
+            ),
+          ),
+          const Divider(color: LuminColors.bgElevated, height: 1),
           const ListTile(
             leading: Icon(
               Icons.info_outline,
@@ -81,6 +94,18 @@ class SettingsPage extends ConsumerWidget {
               kAppVersion,
               style: TextStyle(color: LuminColors.textMuted),
             ),
+          ),
+          const Divider(color: LuminColors.bgElevated, height: 1),
+          ListTile(
+            leading: const Icon(
+              Icons.logout,
+              color: LuminColors.loss,
+            ),
+            title: const Text(
+              'Sign out',
+              style: TextStyle(color: LuminColors.loss),
+            ),
+            onTap: () => ref.read(signOutProvider)(),
           ),
         ],
       ),
