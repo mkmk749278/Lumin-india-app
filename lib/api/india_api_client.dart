@@ -92,6 +92,13 @@ class IndiaApiClient {
         .map(SessionSummary.fromJson)
         .toList();
   }
+
+  Future<void> registerFcmToken(String token, {String uid = ''}) async {
+    await _dio.post<Map<String, dynamic>>(
+      '/api/fcm-token',
+      data: {'token': token, 'uid': uid},
+    );
+  }
 }
 
 /// Retries a request exactly once on connection-level failures
