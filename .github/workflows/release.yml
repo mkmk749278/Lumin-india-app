@@ -1,0 +1,98 @@
+name: Release APK
+
+# Builds a signed APK and publishes it as a GitHub Release (pre-release)
+# on every push to main. The release is tagged with the version from
+# pubspec.yaml (e.g. v0.1.0+1). Re-pushing the same version overwrites
+# the existing pre-release rather than creating a duplicate.
+#
+# Requires secrets:
+#   GOOGLE_SERVICES_JSON  — Firebase config
+#   INDIA_API_TOKEN        — static API bearer token
+#   KEYSTORE_BASE64        — base64-encoded .jks keystore
+#   KEYSTORE_PASSWORD      — keystore password
+#   KEY_ALIAS              — key alias (e.g. lumin-india)
+#   KEY_PASSWORD           — key password
+#   GH_PAT                 — personal access token with repo scope (for creating releases)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read version from pubspec.yaml
+        id: version
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building version: $VERSION"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android platform directory
+        run: |
+          flutter create -t app --org=org.luminapp --platforms=android --project-name=lumin_india .
+          rm -f test/widget_test.dart
+
+      - name: Write google-services.json from secret
+        run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+
+      - name: Decode keystore and write key.properties
+        run: |
+          echo '${{ secrets.KEYSTORE_BASE64 }}' | base64 -d > android/lumin-india.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=lumin-india.jks
+          EOF
+
+      - name: Patch Android project
+        run: python3 .github/scripts/patch_android.py
+
+      - name: Build signed APK
+        run: |
+          flutter pub get
+          flutter build apk --release \
+            --dart-define=INDIA_API_BASE_URL=https://lumintrade.app \
+            --dart-define=INDIA_API_TOKEN="${{ secrets.INDIA_API_TOKEN }}"
+
+      - name: Rename APK with version
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             lumin-india-${{ steps.version.outputs.version }}.apk
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Lumin India ${{ steps.version.outputs.version }}"
+          prerelease: true
+          body: |
+            Auto-built from `main` — ${{ github.sha }}
+
+            **Install:** Download the APK below, allow "Install from unknown sources" on your phone, tap to install.
+
+            **Firebase Phone Auth:** This APK is signed with the release keystore — use the real OTP, no test numbers needed.
+          files: lumin-india-${{ steps.version.outputs.version }}.apk
+          token: ${{ secrets.GH_PAT }}

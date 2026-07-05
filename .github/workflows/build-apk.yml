@@ -1,12 +1,15 @@
 name: Build testing APK
 
-# Owner-testing builds only (Phase 1). Trigger manually from the Actions
-# tab; download the APK artifact on the phone and install it.
+# Signed release APK for owner device testing.
+# Trigger manually from the Actions tab; download the artifact to your phone.
 #
-# The android/ platform directory is not committed — it is generated here
-# by `flutter create` (same pattern as the crypto app). Release signing,
-# keystores, and the Play App Bundle come with the Play Store launch
-# workflow later; this APK uses the default debug signing config.
+# Requires secrets:
+#   GOOGLE_SERVICES_JSON  — Firebase config (mandatory)
+#   INDIA_API_TOKEN        — static API bearer token (mandatory)
+#   KEYSTORE_BASE64        — base64-encoded .jks keystore (mandatory for signed build)
+#   KEYSTORE_PASSWORD      — keystore password
+#   KEY_ALIAS              — key alias (e.g. lumin-india)
+#   KEY_PASSWORD           — key password
 
 on:
   workflow_dispatch:
@@ -37,138 +40,31 @@ jobs:
       - name: Generate Android platform directory
         run: |
           flutter create -t app --org=org.luminapp --platforms=android --project-name=lumin_india .
-          # flutter create drops a default counter-app test that references
-          # a MyApp widget this project doesn't have — remove it.
           rm -f test/widget_test.dart
 
       - name: Write google-services.json from secret
         run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
 
-      - name: Patch Android project for Firebase
+      - name: Decode keystore and write key.properties
         run: |
-          python3 - <<'PYEOF'
-          import os, re
-
-          # Modern Flutter (3.16+) generates Kotlin DSL (.kts) files;
-          # older versions use Groovy (.gradle). Detect which is present.
-          kts = os.path.exists('android/build.gradle.kts')
-          print(f'Gradle format: {"Kotlin DSL (.kts)" if kts else "Groovy (.gradle)"}')
-
-          if kts:
-              # --- project-level build.gradle.kts ---
-              proj = 'android/build.gradle.kts'
-              content = open(proj).read()
-              if 'com.google.gms.google-services' not in content:
-                  # Append the plugin declaration (apply false — plugin is
-                  # applied at the app level)
-                  content = content.rstrip() + (
-                      '\n\nplugins {\n'
-                      '    id("com.google.gms.google-services") version "4.4.2" apply false\n'
-                      '}\n'
-                  )
-                  open(proj, 'w').write(content)
-                  print(f'patched {proj}: added google-services plugin declaration')
-
-              # --- app-level build.gradle.kts ---
-              app = 'android/app/build.gradle.kts'
-              content = open(app).read()
-              if 'com.google.gms.google-services' not in content:
-                  # Insert into existing plugins {} block
-                  content = re.sub(
-                      r'(plugins\s*\{)',
-                      r'\1\n    id("com.google.gms.google-services")',
-                      content,
-                      count=1,
-                  )
-                  print(f'patched {app}: applied google-services plugin')
-
-              # Set minSdk = 26 and fix applicationId to match Firebase registration
-              content = re.sub(
-                  r'minSdk\s*=\s*flutter\.minSdkVersion',
-                  'minSdk = 26',
-                  content,
-              )
-              # flutter create uses --org/--project-name for applicationId but
-              # Firebase has com.luminapp.india registered — override to match.
-              content = re.sub(
-                  r'applicationId\s*=\s*"[^"]*"',
-                  'applicationId = "com.luminapp.india"',
-                  content,
-              )
-              open(app, 'w').write(content)
-              print(f'patched {app}: minSdk=26, applicationId=com.luminapp.india')
-
-          else:
-              # --- Groovy: project-level build.gradle ---
-              proj = 'android/build.gradle'
-              content = open(proj).read()
-              if 'com.google.gms:google-services' not in content:
-                  content = content.replace(
-                      'buildscript {',
-                      'buildscript {\n'
-                      '    dependencies {\n'
-                      '        classpath "com.google.gms:google-services:4.4.2"\n'
-                      '    }',
-                      1,
-                  )
-                  open(proj, 'w').write(content)
-                  print(f'patched {proj}: added google-services classpath')
-
-              # --- Groovy: app-level build.gradle ---
-              app = 'android/app/build.gradle'
-              content = open(app).read()
-              if "apply plugin: 'com.google.gms.google-services'" not in content:
-                  content = content.replace(
-                      "apply plugin: 'com.android.application'",
-                      "apply plugin: 'com.android.application'\n"
-                      "apply plugin: 'com.google.gms.google-services'",
-                      1,
-                  )
-                  print(f'patched {app}: applied google-services plugin')
-              content = re.sub(
-                  r'minSdk\s*=?\s*flutter\.minSdkVersion',
-                  'minSdk = 26',
-                  content,
-              )
-              content = re.sub(
-                  r'minSdkVersion\s+flutter\.minSdkVersion',
-                  'minSdkVersion 26',
-                  content,
-              )
-              # Override applicationId to match Firebase registration
-              content = re.sub(
-                  r'applicationId\s+"[^"]*"',
-                  'applicationId "com.luminapp.india"',
-                  content,
-              )
-              open(app, 'w').write(content)
-              print(f'patched {app}: minSdk=26, applicationId=com.luminapp.india')
-          PYEOF
-
-      - name: Patch manifest — INTERNET permission
-        run: |
-          M=android/app/src/main/AndroidManifest.xml
-          python3 - "$M" <<'EOF'
-          import sys
-
-          path = sys.argv[1]
-          content = open(path).read()
-
-          # Release manifests omit INTERNET by default; the app is useless
-          # without it.
-          if 'android.permission.INTERNET' not in content:
-              content = content.replace(
-                  '<application',
-                  '<uses-permission android:name="android.permission.INTERNET"/>\n'
-                  '    <application',
-                  1,
-              )
-
-          open(path, 'w').write(content)
-          print('manifest patched')
+          echo '${{ secrets.KEYSTORE_BASE64 }}' | base64 -d > android/lumin-india.jks
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=lumin-india.jks
           EOF
+          # Print SHA-1 for reference (useful when adding to Firebase Console)
+          keytool -list -v \
+            -keystore android/lumin-india.jks \
+            -alias "${{ secrets.KEY_ALIAS }}" \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            2>/dev/null | grep -E 'SHA1:|SHA256:' || true
 
-      - name: Build APK
+      - name: Patch Android project
+        run: python3 .github/scripts/patch_android.py
+
+      - name: Build signed APK
         run: |
           flutter pub get
           flutter build apk --release \
