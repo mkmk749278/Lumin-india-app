@@ -47,52 +47,89 @@ jobs:
       - name: Patch Android project for Firebase
         run: |
           python3 - <<'PYEOF'
-          import re
+          import os, re
 
-          # --- project-level build.gradle: add google-services classpath ---
-          proj = 'android/build.gradle'
-          content = open(proj).read()
-          if 'com.google.gms:google-services' not in content:
-              content = content.replace(
-                  'buildscript {',
-                  'buildscript {\n'
-                  '    dependencies {\n'
-                  '        classpath "com.google.gms:google-services:4.4.2"\n'
-                  '    }',
-                  1,
+          # Modern Flutter (3.16+) generates Kotlin DSL (.kts) files;
+          # older versions use Groovy (.gradle). Detect which is present.
+          kts = os.path.exists('android/build.gradle.kts')
+          print(f'Gradle format: {"Kotlin DSL (.kts)" if kts else "Groovy (.gradle)"}')
+
+          if kts:
+              # --- project-level build.gradle.kts ---
+              proj = 'android/build.gradle.kts'
+              content = open(proj).read()
+              if 'com.google.gms.google-services' not in content:
+                  # Append the plugin declaration (apply false — plugin is
+                  # applied at the app level)
+                  content = content.rstrip() + (
+                      '\n\nplugins {\n'
+                      '    id("com.google.gms.google-services") version "4.4.2" apply false\n'
+                      '}\n'
+                  )
+                  open(proj, 'w').write(content)
+                  print(f'patched {proj}: added google-services plugin declaration')
+
+              # --- app-level build.gradle.kts ---
+              app = 'android/app/build.gradle.kts'
+              content = open(app).read()
+              if 'com.google.gms.google-services' not in content:
+                  # Insert into existing plugins {} block
+                  content = re.sub(
+                      r'(plugins\s*\{)',
+                      r'\1\n    id("com.google.gms.google-services")',
+                      content,
+                      count=1,
+                  )
+                  print(f'patched {app}: applied google-services plugin')
+
+              # Set minSdk = 26 (KTS uses assignment syntax)
+              content = re.sub(
+                  r'minSdk\s*=\s*flutter\.minSdkVersion',
+                  'minSdk = 26',
+                  content,
               )
-              open(proj, 'w').write(content)
-              print(f'patched {proj}: added google-services classpath')
+              open(app, 'w').write(content)
+              print(f'patched {app}: minSdk=26')
 
-          # --- app-level build.gradle: apply plugin + set minSdk 26 ---
-          app = 'android/app/build.gradle'
-          content = open(app).read()
+          else:
+              # --- Groovy: project-level build.gradle ---
+              proj = 'android/build.gradle'
+              content = open(proj).read()
+              if 'com.google.gms:google-services' not in content:
+                  content = content.replace(
+                      'buildscript {',
+                      'buildscript {\n'
+                      '    dependencies {\n'
+                      '        classpath "com.google.gms:google-services:4.4.2"\n'
+                      '    }',
+                      1,
+                  )
+                  open(proj, 'w').write(content)
+                  print(f'patched {proj}: added google-services classpath')
 
-          if "apply plugin: 'com.google.gms.google-services'" not in content:
-              # Add after the existing apply plugin line
-              content = content.replace(
-                  "apply plugin: 'com.android.application'",
-                  "apply plugin: 'com.android.application'\n"
-                  "apply plugin: 'com.google.gms.google-services'",
-                  1,
+              # --- Groovy: app-level build.gradle ---
+              app = 'android/app/build.gradle'
+              content = open(app).read()
+              if "apply plugin: 'com.google.gms.google-services'" not in content:
+                  content = content.replace(
+                      "apply plugin: 'com.android.application'",
+                      "apply plugin: 'com.android.application'\n"
+                      "apply plugin: 'com.google.gms.google-services'",
+                      1,
+                  )
+                  print(f'patched {app}: applied google-services plugin')
+              content = re.sub(
+                  r'minSdk\s*=?\s*flutter\.minSdkVersion',
+                  'minSdk = 26',
+                  content,
               )
-              print(f'patched {app}: applied google-services plugin')
-
-          # Set minSdk to 26 (API 26+, per CLAUDE.md)
-          content = re.sub(
-              r'minSdk\s*=?\s*flutter\.minSdkVersion',
-              'minSdk = 26',
-              content,
-          )
-          # Also handle minSdkVersion form
-          content = re.sub(
-              r'minSdkVersion\s+flutter\.minSdkVersion',
-              'minSdkVersion 26',
-              content,
-          )
-
-          open(app, 'w').write(content)
-          print(f'patched {app}: minSdk=26')
+              content = re.sub(
+                  r'minSdkVersion\s+flutter\.minSdkVersion',
+                  'minSdkVersion 26',
+                  content,
+              )
+              open(app, 'w').write(content)
+              print(f'patched {app}: minSdk=26')
           PYEOF
 
       - name: Patch manifest — INTERNET permission
