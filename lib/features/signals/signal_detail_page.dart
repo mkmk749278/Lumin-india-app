@@ -93,7 +93,7 @@ class _LiveCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: LuminColors.bgCard,
         borderRadius: BorderRadius.circular(LuminRadii.md),
-        border: Border.all(color: ptsColor.withOpacity(0.4)),
+        border: Border.all(color: ptsColor.withValues(alpha: 0.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,7 +135,7 @@ class _LiveCard extends StatelessWidget {
               value: signal.progressToTp1,
               minHeight: 6,
               backgroundColor: LuminColors.bgElevated,
-              valueColor: AlwaysStoppedAnimation<Color>(LuminColors.success),
+              valueColor: const AlwaysStoppedAnimation<Color>(LuminColors.success),
             ),
           ),
           const SizedBox(height: LuminSpacing.xs),
