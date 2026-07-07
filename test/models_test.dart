@@ -54,6 +54,40 @@ void main() {
       expect(signal.lotSize, 0);
       expect(signal.createdAt, isNull);
       expect(signal.setupReason, '');
+      // No live overlay when the engine omits it.
+      expect(signal.hasLivePrice, false);
+      expect(signal.currentPrice, isNull);
+    });
+
+    test('parses the live-price overlay and running points', () {
+      // LONG entry 24500, TP1 24700, live 24560 -> +60 pts, 30% to TP1.
+      final signal = IndiaSignal.fromJson({
+        'signal_id': 'sig-live',
+        'symbol': 'NSE:NIFTY26JULFUT',
+        'direction': 'LONG',
+        'entry': 24500.0,
+        'sl': 24450.0,
+        'tp1': 24700.0,
+        'current_price': 24560.0,
+        'live_points': 60.0,
+      });
+
+      expect(signal.hasLivePrice, true);
+      expect(signal.currentPrice, 24560.0);
+      expect(signal.livePoints, 60.0);
+      expect(signal.progressToTp1, closeTo(0.30, 0.001));
+    });
+
+    test('progressToTp1 clamps past target and handles shorts', () {
+      final short = IndiaSignal.fromJson({
+        'signal_id': 'sig-short',
+        'direction': 'SHORT',
+        'entry': 50000.0,
+        'tp1': 49800.0,
+        'current_price': 49700.0, // already beyond TP1
+        'live_points': 300.0,
+      });
+      expect(short.progressToTp1, 1.0);
     });
   });
 
