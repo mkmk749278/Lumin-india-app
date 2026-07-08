@@ -35,6 +35,8 @@ class IndiaSignal {
     required this.expiryDate,
     required this.daysToExpiry,
     required this.createdAt,
+    this.currentPrice,
+    this.livePoints,
   });
 
   final String signalId;
@@ -57,7 +59,24 @@ class IndiaSignal {
   final int daysToExpiry;
   final DateTime? createdAt;
 
+  /// Live overlay the engine adds to open signals (absent otherwise): the
+  /// symbol's current price and running points signed for the subscriber.
+  final double? currentPrice;
+  final double? livePoints;
+
   bool get isLong => direction == 'LONG';
+
+  bool get hasLivePrice => currentPrice != null && currentPrice! > 0;
+
+  /// Fraction of the way from entry to TP1 (clamped 0..1), for a progress bar.
+  double get progressToTp1 {
+    if (!hasLivePrice) return 0;
+    final span = (tp1 - entry).abs();
+    if (span <= 0) return 0;
+    final moved = isLong ? (currentPrice! - entry) : (entry - currentPrice!);
+    final f = moved / span;
+    return f.isNaN ? 0 : f.clamp(0.0, 1.0);
+  }
 
   /// `created_at` is written by SQLite in IST (container TZ) as
   /// `YYYY-MM-DD HH:MM:SS`, so it parses directly and displays as-is.
@@ -87,6 +106,10 @@ class IndiaSignal {
         expiryDate: _asString(json['expiry_date']),
         daysToExpiry: _asInt(json['days_to_expiry']),
         createdAt: _parseCreatedAt(json['created_at']),
+        currentPrice:
+            json['current_price'] == null ? null : _asDouble(json['current_price']),
+        livePoints:
+            json['live_points'] == null ? null : _asDouble(json['live_points']),
       );
 }
 

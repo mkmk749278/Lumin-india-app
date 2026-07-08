@@ -60,6 +60,10 @@ class SignalDetailPage extends StatelessWidget {
             style: const TextStyle(color: LuminColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: LuminSpacing.xl),
+          if (signal.hasLivePrice) ...[
+            _LiveCard(signal: signal),
+            const SizedBox(height: LuminSpacing.lg),
+          ],
           _LevelsCard(signal: signal),
           const SizedBox(height: LuminSpacing.lg),
           _MetaCard(signal: signal),
@@ -67,6 +71,85 @@ class SignalDetailPage extends StatelessWidget {
             const SizedBox(height: LuminSpacing.lg),
             _ReasonCard(reason: signal.setupReason),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveCard extends StatelessWidget {
+  const _LiveCard({required this.signal});
+
+  final IndiaSignal signal;
+
+  @override
+  Widget build(BuildContext context) {
+    final pts = signal.livePoints ?? 0;
+    final ptsColor = pts >= 0 ? LuminColors.success : LuminColors.loss;
+    final sign = pts > 0 ? '+' : '';
+
+    return Container(
+      padding: const EdgeInsets.all(LuminSpacing.lg),
+      decoration: BoxDecoration(
+        color: LuminColors.bgCard,
+        borderRadius: BorderRadius.circular(LuminRadii.md),
+        border: Border.all(color: ptsColor.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'LIVE PRICE',
+                style: TextStyle(
+                  color: LuminColors.textMuted,
+                  fontSize: 11,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$sign${pts.toStringAsFixed(1)} pts',
+                style: TextStyle(
+                  color: ptsColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: LuminSpacing.xs),
+          Text(
+            formatPrice(signal.currentPrice ?? 0),
+            style: const TextStyle(
+              color: LuminColors.textPrimary,
+              fontSize: 30,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: LuminSpacing.md),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(LuminRadii.pill),
+            child: LinearProgressIndicator(
+              value: signal.progressToTp1,
+              minHeight: 6,
+              backgroundColor: LuminColors.bgElevated,
+              valueColor: const AlwaysStoppedAnimation<Color>(LuminColors.success),
+            ),
+          ),
+          const SizedBox(height: LuminSpacing.xs),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Entry ${formatPrice(signal.entry)}',
+                  style: const TextStyle(
+                      color: LuminColors.textMuted, fontSize: 11)),
+              Text('TP1 ${formatPrice(signal.tp1)}',
+                  style: const TextStyle(
+                      color: LuminColors.textMuted, fontSize: 11)),
+            ],
+          ),
         ],
       ),
     );
