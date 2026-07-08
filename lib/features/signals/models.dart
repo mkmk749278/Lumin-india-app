@@ -37,6 +37,10 @@ class IndiaSignal {
     required this.createdAt,
     this.currentPrice,
     this.livePoints,
+    this.livePct,
+    this.status = 'OPEN',
+    this.resultPct,
+    this.resultPoints,
   });
 
   final String signalId;
@@ -60,13 +64,41 @@ class IndiaSignal {
   final DateTime? createdAt;
 
   /// Live overlay the engine adds to open signals (absent otherwise): the
-  /// symbol's current price and running points signed for the subscriber.
+  /// symbol's current price and running result signed for the subscriber.
+  /// ``livePct`` is the cross-instrument-comparable running % (points/entry).
   final double? currentPrice;
   final double? livePoints;
+  final double? livePct;
+
+  /// Outcome status joined from the engine: OPEN until the monitor resolves the
+  /// signal to TP1_HIT / SL_HIT / EXPIRED. ``resultPct`` / ``resultPoints`` are
+  /// the realised, signed result once resolved (null while OPEN).
+  final String status;
+  final double? resultPct;
+  final double? resultPoints;
 
   bool get isLong => direction == 'LONG';
 
   bool get hasLivePrice => currentPrice != null && currentPrice! > 0;
+
+  bool get isResolved => status.isNotEmpty && status != 'OPEN';
+  bool get isWin => status == 'TP1_HIT';
+  bool get isLoss => status == 'SL_HIT';
+  bool get isExpired => status == 'EXPIRED';
+
+  /// Short badge label for the card/detail (OPEN, TP1, SL, EXPIRED).
+  String get statusLabel {
+    switch (status) {
+      case 'TP1_HIT':
+        return 'TP1 HIT';
+      case 'SL_HIT':
+        return 'SL HIT';
+      case 'EXPIRED':
+        return 'EXPIRED';
+      default:
+        return 'OPEN';
+    }
+  }
 
   /// Fraction of the way from entry to TP1 (clamped 0..1), for a progress bar.
   double get progressToTp1 {
@@ -110,6 +142,15 @@ class IndiaSignal {
             json['current_price'] == null ? null : _asDouble(json['current_price']),
         livePoints:
             json['live_points'] == null ? null : _asDouble(json['live_points']),
+        livePct: json['live_pct'] == null ? null : _asDouble(json['live_pct']),
+        status: _asString(json['status']).isEmpty
+            ? 'OPEN'
+            : _asString(json['status']),
+        resultPct:
+            json['result_pct'] == null ? null : _asDouble(json['result_pct']),
+        resultPoints: json['result_points'] == null
+            ? null
+            : _asDouble(json['result_points']),
       );
 }
 
@@ -127,6 +168,8 @@ class SessionSummary {
     required this.slCount,
     required this.expiredCount,
     required this.totalPoints,
+    this.totalPct = 0,
+    this.avgPct = 0,
   });
 
   final String date;
@@ -140,6 +183,12 @@ class SessionSummary {
   final int slCount;
   final int expiredCount;
   final double totalPoints;
+
+  /// Cross-instrument-comparable P&L: cumulative % across the day's resolved
+  /// signals and the average % per signal. Summed raw points are meaningless
+  /// across a 46-base universe — % is the honest ledger.
+  final double totalPct;
+  final double avgPct;
 
   bool get hasOutcomes => tp1Count + slCount + expiredCount > 0;
   int get resolvedCount => tp1Count + slCount + expiredCount;
@@ -172,6 +221,8 @@ class SessionSummary {
       slCount: _asInt(json['sl_count']),
       expiredCount: _asInt(json['expired_count']),
       totalPoints: _asDouble(json['total_points']),
+      totalPct: _asDouble(json['total_pct']),
+      avgPct: _asDouble(json['avg_pct']),
     );
   }
 }
@@ -183,6 +234,7 @@ class SignalOutcome {
     required this.outcome,
     required this.exitPrice,
     required this.points,
+    this.pct = 0,
     required this.resolvedAt,
     required this.symbol,
     required this.base,
@@ -199,6 +251,10 @@ class SignalOutcome {
   final String outcome;
   final double exitPrice;
   final double points;
+
+  /// Signed % return (points/entry) — comparable across instruments, unlike
+  /// raw points. The session ledger aggregates this, not points.
+  final double pct;
   final String resolvedAt;
   final String symbol;
   final String base;
@@ -219,6 +275,7 @@ class SignalOutcome {
         outcome: _asString(json['outcome']),
         exitPrice: _asDouble(json['exit_price']),
         points: _asDouble(json['points']),
+        pct: _asDouble(json['pct']),
         resolvedAt: _asString(json['resolved_at']),
         symbol: _asString(json['symbol']),
         base: _asString(json['base']),
@@ -254,11 +311,17 @@ class EnginePulse {
     required this.signalsToday,
     required this.uptimeSeconds,
     this.autoExecution = false,
+    this.allowedBases = const [],
   });
 
   final String sessionState;
   final int signalsToday;
   final int uptimeSeconds;
+
+  /// The bases the engine is actually scanning (from /api/pulse). Drives the
+  /// session status line so it reflects the real universe, not a hardcoded
+  /// "NIFTY and BANKNIFTY".
+  final List<String> allowedBases;
 
   /// Phase 2 flag from the engine. Gates the Auto-Trade settings screen —
   /// it stays "Coming Soon" until the engine reports true.
@@ -271,5 +334,10 @@ class EnginePulse {
         signalsToday: _asInt(json['signals_today']),
         uptimeSeconds: _asInt(json['uptime_seconds']),
         autoExecution: json['auto_execution'] == true,
+        allowedBases: (json['allowed_bases'] is List)
+            ? (json['allowed_bases'] as List)
+                .map((e) => e.toString())
+                .toList()
+            : const [],
       );
 }
