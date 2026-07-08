@@ -57,6 +57,26 @@ void main() {
       // No live overlay when the engine omits it.
       expect(signal.hasLivePrice, false);
       expect(signal.currentPrice, isNull);
+      // Status defaults to OPEN when the engine hasn't joined an outcome.
+      expect(signal.status, 'OPEN');
+      expect(signal.isResolved, false);
+    });
+
+    test('parses per-signal outcome status + realised %', () {
+      final signal = IndiaSignal.fromJson({
+        'signal_id': 'sig-done',
+        'direction': 'LONG',
+        'entry': 24500.0,
+        'status': 'TP1_HIT',
+        'result_pct': 0.41,
+        'result_points': 100.0,
+      });
+      expect(signal.status, 'TP1_HIT');
+      expect(signal.isResolved, true);
+      expect(signal.isWin, true);
+      expect(signal.statusLabel, 'TP1 HIT');
+      expect(signal.resultPct, 0.41);
+      expect(signal.resultPoints, 100.0);
     });
 
     test('parses the live-price overlay and running points', () {
@@ -76,6 +96,18 @@ void main() {
       expect(signal.currentPrice, 24560.0);
       expect(signal.livePoints, 60.0);
       expect(signal.progressToTp1, closeTo(0.30, 0.001));
+    });
+
+    test('parses running live_pct', () {
+      final signal = IndiaSignal.fromJson({
+        'signal_id': 'sig-livepct',
+        'direction': 'LONG',
+        'entry': 24500.0,
+        'current_price': 24560.0,
+        'live_points': 60.0,
+        'live_pct': 0.24,
+      });
+      expect(signal.livePct, 0.24);
     });
 
     test('progressToTp1 clamps past target and handles shorts', () {
@@ -105,6 +137,8 @@ void main() {
         'sl_count': 1,
         'expired_count': 0,
         'total_points': 120.0,
+        'total_pct': 0.62,
+        'avg_pct': 0.155,
       });
 
       expect(s.date, '2026-07-07');
@@ -114,6 +148,8 @@ void main() {
       expect(s.slCount, 1);
       expect(s.expiredCount, 0);
       expect(s.totalPoints, 120.0);
+      expect(s.totalPct, 0.62);
+      expect(s.avgPct, 0.155);
       expect(s.resolvedCount, 4);
       expect(s.winRate, closeTo(75.0, 0.01));
       expect(s.gatesFired['cooldown_gate'], 8);
@@ -168,6 +204,7 @@ void main() {
         'outcome': 'TP1_HIT',
         'exit_price': 24700.0,
         'points': 100.0,
+        'pct': 0.41,
         'resolved_at': '2026-07-07 11:30:00',
         'symbol': 'NSE:NIFTY26JULFUT-FF',
         'base': 'NIFTY',
@@ -184,6 +221,7 @@ void main() {
       expect(o.isLoss, false);
       expect(o.isExpired, false);
       expect(o.points, 100.0);
+      expect(o.pct, 0.41);
       expect(o.base, 'NIFTY');
     });
 
@@ -230,11 +268,14 @@ void main() {
         'session_state': 'OPEN',
         'signals_today': 3,
         'uptime_seconds': 4200,
+        'allowed_bases': ['NIFTY', 'BANKNIFTY', 'RELIANCE'],
       });
 
       expect(pulse.isOpen, true);
       expect(pulse.signalsToday, 3);
       expect(pulse.uptimeSeconds, 4200);
+      expect(pulse.allowedBases.length, 3);
+      expect(pulse.allowedBases, contains('RELIANCE'));
     });
 
     test('closed session is not open', () {

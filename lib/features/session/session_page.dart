@@ -77,7 +77,10 @@ class _StateCard extends StatelessWidget {
       color = LuminColors.textMuted;
     } else if (pulse!.isOpen) {
       headline = 'MARKET OPEN';
-      sub = 'Scanning NIFTY and BANKNIFTY every 30 seconds';
+      final n = pulse!.allowedBases.length;
+      sub = n > 0
+          ? 'Scanning $n instrument${n == 1 ? '' : 's'} every 30 seconds'
+          : 'Scanning every 30 seconds';
       color = LuminColors.success;
     } else if (pulse!.sessionState == 'PRE_OPEN') {
       headline = 'PRE-OPEN';
@@ -182,7 +185,10 @@ class _OutcomesCard extends StatelessWidget {
     final tp1 = outcomes.where((o) => o.isWin).length;
     final sl = outcomes.where((o) => o.isLoss).length;
     final expired = outcomes.where((o) => o.isExpired).length;
-    final netPoints = outcomes.fold<double>(0, (sum, o) => sum + o.points);
+    // % is the cross-instrument-comparable measure — summing raw points across a
+    // 46-base universe is meaningless (it just weights by price level).
+    final netPct = outcomes.fold<double>(0, (sum, o) => sum + o.pct);
+    final avgPct = outcomes.isEmpty ? 0.0 : netPct / outcomes.length;
     final winRate = outcomes.isEmpty ? 0.0 : tp1 / outcomes.length * 100;
 
     return _Card(
@@ -213,21 +219,15 @@ class _OutcomesCard extends StatelessWidget {
           const SizedBox(height: LuminSpacing.md),
           Row(
             children: [
-              const Text(
-                'Net points',
-                style: TextStyle(
-                  color: LuminColors.textMuted,
-                  fontSize: 12,
-                ),
+              _Stat(
+                label: 'Net P&L',
+                value: '${netPct >= 0 ? '+' : ''}${netPct.toStringAsFixed(2)}%',
+                color: netPct >= 0 ? LuminColors.success : LuminColors.loss,
               ),
-              const SizedBox(width: LuminSpacing.sm),
-              Text(
-                '${netPoints >= 0 ? '+' : ''}${netPoints.toStringAsFixed(1)} pts',
-                style: TextStyle(
-                  color: netPoints >= 0 ? LuminColors.success : LuminColors.loss,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+              _Stat(
+                label: 'Avg / signal',
+                value: '${avgPct >= 0 ? '+' : ''}${avgPct.toStringAsFixed(2)}%',
+                color: avgPct >= 0 ? LuminColors.success : LuminColors.loss,
               ),
             ],
           ),
@@ -263,8 +263,10 @@ class _OutcomeRow extends StatelessWidget {
       label = 'EXP';
     }
 
+    final pct = outcome.pct;
+    final pctStr = '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%';
     final pts = outcome.points;
-    final ptsStr = '${pts >= 0 ? '+' : ''}${pts.toStringAsFixed(1)}';
+    final ptsStr = '${pts >= 0 ? '+' : ''}${pts.toStringAsFixed(1)} pts';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -296,12 +298,21 @@ class _OutcomeRow extends StatelessWidget {
             ),
           ),
           const Spacer(),
+          // Raw points as secondary context — not comparable across bases.
           Text(
             ptsStr,
+            style: const TextStyle(
+              color: LuminColors.textMuted,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(width: LuminSpacing.sm),
+          Text(
+            pctStr,
             style: TextStyle(
-              color: pts >= 0 ? LuminColors.success : LuminColors.loss,
+              color: pct >= 0 ? LuminColors.success : LuminColors.loss,
               fontSize: 13,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -332,8 +343,7 @@ class _QualityWindowCard extends StatelessWidget {
     final totalSignals = summaries.fold<int>(0, (s, r) => s + r.signalCount);
     final totalTp1 = summaries.fold<int>(0, (s, r) => s + r.tp1Count);
     final totalResolved = summaries.fold<int>(0, (s, r) => s + r.resolvedCount);
-    final totalPoints =
-        summaries.fold<double>(0.0, (s, r) => s + r.totalPoints);
+    final totalPct = summaries.fold<double>(0.0, (s, r) => s + r.totalPct);
     final overallWin =
         totalResolved == 0 ? 0.0 : totalTp1 / totalResolved * 100;
 
@@ -352,10 +362,10 @@ class _QualityWindowCard extends StatelessWidget {
                     overallWin >= 50 ? LuminColors.success : LuminColors.loss,
               ),
               _Stat(
-                label: 'Net pts',
+                label: 'Net P&L',
                 value:
-                    '${totalPoints >= 0 ? '+' : ''}${totalPoints.toStringAsFixed(1)}',
-                color: totalPoints >= 0 ? LuminColors.success : LuminColors.loss,
+                    '${totalPct >= 0 ? '+' : ''}${totalPct.toStringAsFixed(2)}%',
+                color: totalPct >= 0 ? LuminColors.success : LuminColors.loss,
               ),
             ],
           ),
@@ -386,9 +396,9 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pts = summary.totalPoints;
-    final ptsStr = summary.hasOutcomes
-        ? '${pts >= 0 ? '+' : ''}${pts.toStringAsFixed(1)}'
+    final pct = summary.totalPct;
+    final pctStr = summary.hasOutcomes
+        ? '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%'
         : '—';
     final winStr = summary.hasOutcomes
         ? '${summary.winRate.toStringAsFixed(0)}%'
@@ -434,10 +444,10 @@ class _SummaryRow extends StatelessWidget {
             ),
           ),
           Text(
-            ptsStr,
+            pctStr,
             style: TextStyle(
               color: summary.hasOutcomes
-                  ? (pts >= 0 ? LuminColors.success : LuminColors.loss)
+                  ? (pct >= 0 ? LuminColors.success : LuminColors.loss)
                   : LuminColors.textMuted,
               fontSize: 12,
               fontWeight: FontWeight.w500,

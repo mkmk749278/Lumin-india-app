@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../shared/tokens.dart';
 import 'models.dart';
-import 'signal_card.dart' show formatIstTime, formatPrice;
+import 'signal_card.dart' show formatIstTime, formatPrice, statusColor;
 
 class SignalDetailPage extends StatelessWidget {
   const SignalDetailPage({super.key, required this.signal});
@@ -60,7 +60,10 @@ class SignalDetailPage extends StatelessWidget {
             style: const TextStyle(color: LuminColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: LuminSpacing.xl),
-          if (signal.hasLivePrice) ...[
+          if (signal.isResolved) ...[
+            _ResultBanner(signal: signal),
+            const SizedBox(height: LuminSpacing.lg),
+          ] else if (signal.hasLivePrice) ...[
             _LiveCard(signal: signal),
             const SizedBox(height: LuminSpacing.lg),
           ],
@@ -85,6 +88,7 @@ class _LiveCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pts = signal.livePoints ?? 0;
+    final pct = signal.livePct ?? 0;
     final ptsColor = pts >= 0 ? LuminColors.success : LuminColors.loss;
     final sign = pts > 0 ? '+' : '';
 
@@ -109,8 +113,9 @@ class _LiveCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              // % leads (comparable across instruments); points in parentheses.
               Text(
-                '$sign${pts.toStringAsFixed(1)} pts',
+                '$sign${pct.toStringAsFixed(2)}%  ($sign${pts.toStringAsFixed(1)} pts)',
                 style: TextStyle(
                   color: ptsColor,
                   fontSize: 14,
@@ -148,6 +153,72 @@ class _LiveCard extends StatelessWidget {
               Text('TP1 ${formatPrice(signal.tp1)}',
                   style: const TextStyle(
                       color: LuminColors.textMuted, fontSize: 11)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown instead of the live card once a signal has resolved: the final
+/// outcome and its realised % (the cross-instrument-comparable result).
+class _ResultBanner extends StatelessWidget {
+  const _ResultBanner({required this.signal});
+
+  final IndiaSignal signal;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = statusColor(signal.status);
+    final pct = signal.resultPct;
+    final pts = signal.resultPoints;
+    final pctStr = pct == null
+        ? ''
+        : '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%';
+    final ptsStr = pts == null
+        ? ''
+        : '${pts >= 0 ? '+' : ''}${pts.toStringAsFixed(1)} pts';
+
+    return Container(
+      padding: const EdgeInsets.all(LuminSpacing.lg),
+      decoration: BoxDecoration(
+        color: color.withAlpha(24),
+        borderRadius: BorderRadius.circular(LuminRadii.md),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            signal.statusLabel,
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const Spacer(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (pctStr.isNotEmpty)
+                Text(
+                  pctStr,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              if (ptsStr.isNotEmpty)
+                Text(
+                  ptsStr,
+                  style: const TextStyle(
+                    color: LuminColors.textMuted,
+                    fontSize: 11,
+                  ),
+                ),
             ],
           ),
         ],
@@ -247,7 +318,9 @@ class _MetaCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = <MapEntry<String, String>>[
       MapEntry('Setup', _pretty(signal.setupClass)),
-      MapEntry('Lot size', '${signal.lotSize}'),
+      // Lot size is 0 for stock bases until it resolves from the broker symbol
+      // master — don't show a meaningless 0.
+      if (signal.lotSize > 0) MapEntry('Lot size', '${signal.lotSize}'),
       MapEntry('Time', formatIstTime(signal.createdAt)),
       if (signal.regime60m.isNotEmpty)
         MapEntry('Regime 60m', _pretty(signal.regime60m)),

@@ -16,6 +16,34 @@ String formatIstTime(DateTime? dt) {
 
 String formatPrice(double v) => v.toStringAsFixed(1);
 
+/// Colour for an outcome status badge (OPEN/TP1/SL/EXPIRED).
+Color statusColor(String status) {
+  switch (status) {
+    case 'TP1_HIT':
+      return LuminColors.success;
+    case 'SL_HIT':
+      return LuminColors.loss;
+    case 'EXPIRED':
+      return LuminColors.warn;
+    default:
+      return LuminColors.textMuted;
+  }
+}
+
+/// The signed result string for a signal: realised % once resolved, else the
+/// running % while it is open and has a live price. Null when neither applies.
+String? signalResultLabel(IndiaSignal s) {
+  if (s.isResolved && s.resultPct != null) {
+    final p = s.resultPct!;
+    return '${p >= 0 ? '+' : ''}${p.toStringAsFixed(2)}%';
+  }
+  if (s.hasLivePrice && s.livePct != null) {
+    final p = s.livePct!;
+    return '${p >= 0 ? '+' : ''}${p.toStringAsFixed(2)}%';
+  }
+  return null;
+}
+
 class SignalCard extends StatelessWidget {
   const SignalCard({super.key, required this.signal, this.onTap});
 
@@ -28,6 +56,7 @@ class SignalCard extends StatelessWidget {
         signal.isLong ? LuminColors.success : LuminColors.loss;
     final directionFaint =
         signal.isLong ? LuminColors.successFaint : LuminColors.lossFaint;
+    final resultLabel = signalResultLabel(signal);
 
     return Card(
       color: LuminColors.bgCard,
@@ -60,6 +89,14 @@ class SignalCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const Spacer(),
+                  if (signal.isResolved) ...[
+                    _Chip(
+                      label: signal.statusLabel,
+                      color: statusColor(signal.status),
+                      background: statusColor(signal.status).withAlpha(30),
+                    ),
+                    const SizedBox(width: LuminSpacing.sm),
+                  ],
                   _Chip(
                     label: signal.tier,
                     color: tierColor(signal.tier),
@@ -82,15 +119,31 @@ class SignalCard extends StatelessWidget {
                     color: LuminColors.success,
                   ),
                   Expanded(
-                    child: Align(
-                      alignment: Alignment.bottomRight,
-                      child: Text(
-                        formatIstTime(signal.createdAt),
-                        style: const TextStyle(
-                          color: LuminColors.textMuted,
-                          fontSize: 12,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (resultLabel != null)
+                          Text(
+                            resultLabel,
+                            style: TextStyle(
+                              color: signal.isResolved
+                                  ? statusColor(signal.status)
+                                  : ((signal.livePct ?? 0) >= 0
+                                      ? LuminColors.success
+                                      : LuminColors.loss),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        const SizedBox(height: 2),
+                        Text(
+                          formatIstTime(signal.createdAt),
+                          style: const TextStyle(
+                            color: LuminColors.textMuted,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ],
