@@ -25,7 +25,7 @@ Widget _wrap(Widget child, {EnginePulse pulse = _pulseClosed,
     overrides: [
       pulseProvider.overrideWith((ref) => Future.value(pulse)),
       signalsProvider.overrideWith((ref) => Future.value(signals)),
-      outcomesProvider.overrideWith((ref) => Future.value(outcomes)),
+      todayOutcomesProvider.overrideWith((ref) => Future.value(outcomes)),
       sessionSummariesProvider.overrideWith((ref) => Future.value(summaries)),
       currentPhoneProvider.overrideWithValue('+919876543210'),
       signOutProvider.overrideWithValue(() => Future<void>.value()),
