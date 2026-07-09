@@ -19,7 +19,7 @@ class SessionPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pulse = ref.watch(pulseProvider);
-    final outcomes = ref.watch(outcomesProvider);
+    final outcomes = ref.watch(todayOutcomesProvider);
     final summaries = ref.watch(sessionSummariesProvider);
 
     return Scaffold(
@@ -29,7 +29,7 @@ class SessionPage extends ConsumerWidget {
         backgroundColor: LuminColors.bgCard,
         onRefresh: () async {
           ref.invalidate(pulseProvider);
-          ref.invalidate(outcomesProvider);
+          ref.invalidate(todayOutcomesProvider);
           ref.invalidate(sessionSummariesProvider);
           await ref.read(pulseProvider.future);
         },
@@ -43,7 +43,7 @@ class SessionPage extends ConsumerWidget {
             const SizedBox(height: LuminSpacing.lg),
             _OutcomesCard(outcomes: outcomes.valueOrNull ?? const []),
             const SizedBox(height: LuminSpacing.lg),
-            _QualityWindowCard(summaries: summaries.valueOrNull ?? const []),
+            _PerformanceWindowCard(summaries: summaries.valueOrNull ?? const []),
             const SizedBox(height: LuminSpacing.lg),
             const _HoursCard(),
           ],
@@ -321,70 +321,176 @@ class _OutcomeRow extends StatelessWidget {
   }
 }
 
-// ── 30-day quality window card ────────────────────────────────────────────────
+// ── Selectable performance-window card ────────────────────────────────────────
+//
+// The daily quality ledger, aggregated over a look-back the subscriber picks
+// (3D / 1W / 1M, default 1W). Distinct from the TODAY card above: this is the
+// settled-session ledger, so a live session in progress shows once it closes
+// at 15:30 IST and its summary row is written.
 
-class _QualityWindowCard extends StatelessWidget {
-  const _QualityWindowCard({required this.summaries});
+class _PerformanceWindowCard extends ConsumerWidget {
+  const _PerformanceWindowCard({required this.summaries});
 
   final List<SessionSummary> summaries;
 
+  /// Sessions whose date falls within `window.days` calendar days back from
+  /// today (IST). Newest first, as the ledger arrives.
+  List<SessionSummary> _inWindow(PerfWindow window) {
+    final ist = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+    final today = DateTime(ist.year, ist.month, ist.day);
+    final cutoff = today.subtract(Duration(days: window.days - 1));
+    return summaries.where((s) {
+      final d = DateTime.tryParse(s.date);
+      if (d == null) return false;
+      final day = DateTime(d.year, d.month, d.day);
+      return !day.isBefore(cutoff);
+    }).toList();
+  }
+
   @override
-  Widget build(BuildContext context) {
-    if (summaries.isEmpty) {
-      return const _Card(
-        label: '30-DAY QUALITY WINDOW',
-        child: Text(
-          'First session summary written at 15:30 IST on the first trading day',
-          style: TextStyle(color: LuminColors.textMuted, fontSize: 13),
-        ),
-      );
-    }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final window = ref.watch(perfWindowProvider);
+    final rows = _inWindow(window);
 
-    final totalSignals = summaries.fold<int>(0, (s, r) => s + r.signalCount);
-    final totalTp1 = summaries.fold<int>(0, (s, r) => s + r.tp1Count);
-    final totalResolved = summaries.fold<int>(0, (s, r) => s + r.resolvedCount);
-    final totalPct = summaries.fold<double>(0.0, (s, r) => s + r.totalPct);
-    final overallWin =
-        totalResolved == 0 ? 0.0 : totalTp1 / totalResolved * 100;
-
-    return _Card(
-      label: '${summaries.length}-DAY QUALITY WINDOW',
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(LuminSpacing.xl),
+      decoration: BoxDecoration(
+        color: LuminColors.bgCard,
+        borderRadius: BorderRadius.circular(LuminRadii.md),
+        border: Border.all(color: LuminColors.cardBorder),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _Stat(label: 'Signals', value: '$totalSignals'),
-              _Stat(
-                label: 'TP1 Win %',
-                value: '${overallWin.toStringAsFixed(0)}%',
-                color:
-                    overallWin >= 50 ? LuminColors.success : LuminColors.loss,
+              const Expanded(
+                child: Text(
+                  'QUALITY WINDOW',
+                  style: TextStyle(
+                    color: LuminColors.textMuted,
+                    fontSize: 11,
+                    letterSpacing: 1.0,
+                  ),
+                ),
               ),
-              _Stat(
-                label: 'Net P&L',
-                value:
-                    '${totalPct >= 0 ? '+' : ''}${totalPct.toStringAsFixed(2)}%',
-                color: totalPct >= 0 ? LuminColors.success : LuminColors.loss,
+              _WindowSelector(
+                selected: window,
+                onSelect: (w) =>
+                    ref.read(perfWindowProvider.notifier).state = w,
               ),
             ],
           ),
-          const SizedBox(height: LuminSpacing.md),
-          const Divider(color: LuminColors.bgElevated, height: 1),
-          const SizedBox(height: LuminSpacing.sm),
-          ...summaries.take(10).map((s) => _SummaryRow(summary: s)),
-          if (summaries.length > 10) ...[
-            const SizedBox(height: LuminSpacing.sm),
-            Text(
-              '+ ${summaries.length - 10} earlier sessions',
-              style: const TextStyle(
-                color: LuminColors.textMuted,
-                fontSize: 12,
-              ),
-            ),
-          ],
+          const SizedBox(height: LuminSpacing.lg),
+          if (rows.isEmpty)
+            const Text(
+              'No closed sessions in this window yet',
+              style: TextStyle(color: LuminColors.textMuted, fontSize: 13),
+            )
+          else
+            _WindowBody(rows: rows),
         ],
       ),
+    );
+  }
+}
+
+class _WindowBody extends StatelessWidget {
+  const _WindowBody({required this.rows});
+
+  final List<SessionSummary> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalSignals = rows.fold<int>(0, (s, r) => s + r.signalCount);
+    final totalTp1 = rows.fold<int>(0, (s, r) => s + r.tp1Count);
+    final totalResolved = rows.fold<int>(0, (s, r) => s + r.resolvedCount);
+    final totalPct = rows.fold<double>(0.0, (s, r) => s + r.totalPct);
+    final overallWin =
+        totalResolved == 0 ? 0.0 : totalTp1 / totalResolved * 100;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _Stat(label: 'Signals', value: '$totalSignals'),
+            _Stat(
+              label: 'TP1 Win %',
+              value: '${overallWin.toStringAsFixed(0)}%',
+              color: overallWin >= 50 ? LuminColors.success : LuminColors.loss,
+            ),
+            _Stat(
+              label: 'Net P&L',
+              value: '${totalPct >= 0 ? '+' : ''}${totalPct.toStringAsFixed(2)}%',
+              color: totalPct >= 0 ? LuminColors.success : LuminColors.loss,
+            ),
+          ],
+        ),
+        const SizedBox(height: LuminSpacing.md),
+        const Divider(color: LuminColors.bgElevated, height: 1),
+        const SizedBox(height: LuminSpacing.sm),
+        ...rows.take(10).map((s) => _SummaryRow(summary: s)),
+        if (rows.length > 10) ...[
+          const SizedBox(height: LuminSpacing.sm),
+          Text(
+            '+ ${rows.length - 10} earlier sessions',
+            style: const TextStyle(
+              color: LuminColors.textMuted,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _WindowSelector extends StatelessWidget {
+  const _WindowSelector({required this.selected, required this.onSelect});
+
+  final PerfWindow selected;
+  final ValueChanged<PerfWindow> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final w in PerfWindow.values)
+          Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: GestureDetector(
+              onTap: () => onSelect(w),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: w == selected
+                      ? LuminColors.accent.withAlpha(30)
+                      : LuminColors.bgElevated,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: w == selected
+                        ? LuminColors.accent
+                        : LuminColors.cardBorder,
+                  ),
+                ),
+                child: Text(
+                  w.label,
+                  style: TextStyle(
+                    color: w == selected
+                        ? LuminColors.accent
+                        : LuminColors.textMuted,
+                    fontSize: 12,
+                    fontWeight:
+                        w == selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
