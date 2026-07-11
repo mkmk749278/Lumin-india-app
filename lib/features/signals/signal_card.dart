@@ -16,10 +16,14 @@ String formatIstTime(DateTime? dt) {
 
 String formatPrice(double v) => v.toStringAsFixed(1);
 
-/// Colour for an outcome status badge (OPEN/TP1/SL/EXPIRED).
+/// Colour for an outcome status badge. Every TP1-banked outcome renders as a
+/// win (two-target plan — TP2_HIT / TP1_BE / TP1_EXPIRED all booked TP1).
 Color statusColor(String status) {
   switch (status) {
     case 'TP1_HIT':
+    case 'TP2_HIT':
+    case 'TP1_BE':
+    case 'TP1_EXPIRED':
       return LuminColors.success;
     case 'SL_HIT':
       return LuminColors.loss;

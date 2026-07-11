@@ -182,14 +182,15 @@ class _OutcomesCard extends StatelessWidget {
       );
     }
 
-    final tp1 = outcomes.where((o) => o.isWin).length;
+    // Wins = every TP1-banked outcome (two-target plan: TP1/TP2/BE/TP1-exp).
+    final wins = outcomes.where((o) => o.isWin).length;
     final sl = outcomes.where((o) => o.isLoss).length;
     final expired = outcomes.where((o) => o.isExpired).length;
     // % is the cross-instrument-comparable measure — summing raw points across a
     // 46-base universe is meaningless (it just weights by price level).
     final netPct = outcomes.fold<double>(0, (sum, o) => sum + o.pct);
     final avgPct = outcomes.isEmpty ? 0.0 : netPct / outcomes.length;
-    final winRate = outcomes.isEmpty ? 0.0 : tp1 / outcomes.length * 100;
+    final winRate = outcomes.isEmpty ? 0.0 : wins / outcomes.length * 100;
 
     return _Card(
       label: 'TODAY\'S OUTCOMES',
@@ -199,8 +200,8 @@ class _OutcomesCard extends StatelessWidget {
           Row(
             children: [
               _Stat(
-                label: 'TP1 Hit',
-                value: '$tp1',
+                label: 'Wins',
+                value: '$wins',
                 color: LuminColors.success,
               ),
               _Stat(
@@ -251,17 +252,14 @@ class _OutcomeRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color color;
-    final String label;
     if (outcome.isWin) {
       color = LuminColors.success;
-      label = 'TP1';
     } else if (outcome.isLoss) {
       color = LuminColors.loss;
-      label = 'SL';
     } else {
       color = LuminColors.textMuted;
-      label = 'EXP';
     }
+    final label = outcome.shortLabel;
 
     final pct = outcome.pct;
     final pctStr = '${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(2)}%';

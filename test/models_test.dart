@@ -79,6 +79,24 @@ void main() {
       expect(signal.resultPoints, 100.0);
     });
 
+    test('two-target outcomes count as wins with their own labels', () {
+      // Engine Session 19: TP1_BE / TP2_HIT / TP1_EXPIRED all banked TP1.
+      IndiaSignal withStatus(String st) => IndiaSignal.fromJson({
+            'signal_id': 'sig-$st',
+            'direction': 'LONG',
+            'entry': 24500.0,
+            'status': st,
+          });
+      expect(withStatus('TP2_HIT').isWin, true);
+      expect(withStatus('TP2_HIT').statusLabel, 'TP2 HIT');
+      expect(withStatus('TP1_BE').isWin, true);
+      expect(withStatus('TP1_BE').statusLabel, 'TP1 + BE');
+      expect(withStatus('TP1_EXPIRED').isWin, true);
+      expect(withStatus('TP1_EXPIRED').statusLabel, 'TP1 + EXP');
+      expect(withStatus('SL_HIT').isWin, false);
+      expect(withStatus('EXPIRED').isWin, false);
+    });
+
     test('parses the live-price overlay and running points', () {
       // LONG entry 24500, TP1 24700, live 24560 -> +60 pts, 30% to TP1.
       final signal = IndiaSignal.fromJson({
@@ -156,6 +174,28 @@ void main() {
       expect(s.gatesFired['min_atr_gate'], 4);
     });
 
+    test('two-target counts fold into wins and win rate', () {
+      final s = SessionSummary.fromJson({
+        'date': '2026-07-13',
+        'signal_count': 6,
+        'a_plus_count': 0,
+        'b_count': 6,
+        'avg_confidence': 60.0,
+        'total_suppressed': 0,
+        'gates_fired': '{}',
+        'tp1_count': 1,
+        'sl_count': 2,
+        'expired_count': 0,
+        'tp1_be_count': 1,
+        'tp2_count': 1,
+        'tp1_expired_count': 1,
+        'total_points': 0.0,
+      });
+      expect(s.winCount, 4); // TP1 + TP2 + BE + TP1-exp all banked TP1
+      expect(s.resolvedCount, 6);
+      expect(s.winRate, closeTo(66.67, 0.01));
+    });
+
     test('parses gates_fired when already a map', () {
       final s = SessionSummary.fromJson({
         'date': '2026-07-07',
@@ -218,6 +258,7 @@ void main() {
       });
 
       expect(o.isWin, true);
+      expect(o.shortLabel, 'TP1');
       expect(o.isLoss, false);
       expect(o.isExpired, false);
       expect(o.points, 100.0);
