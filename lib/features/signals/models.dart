@@ -70,9 +70,11 @@ class IndiaSignal {
   final double? livePoints;
   final double? livePct;
 
-  /// Outcome status joined from the engine: OPEN until the monitor resolves the
-  /// signal to TP1_HIT / SL_HIT / EXPIRED. ``resultPct`` / ``resultPoints`` are
-  /// the realised, signed result once resolved (null while OPEN).
+  /// Outcome status joined from the engine: OPEN until the monitor resolves
+  /// the signal (TP1_HIT / SL_HIT / EXPIRED, or the two-target outcomes
+  /// TP1_BE / TP2_HIT / TP1_EXPIRED). ``resultPct`` / ``resultPoints`` are the
+  /// realised, signed result once resolved (null while OPEN; position-weighted
+  /// across both legs for two-target outcomes).
   final String status;
   final double? resultPct;
   final double? resultPoints;
@@ -82,15 +84,30 @@ class IndiaSignal {
   bool get hasLivePrice => currentPrice != null && currentPrice! > 0;
 
   bool get isResolved => status.isNotEmpty && status != 'OPEN';
-  bool get isWin => status == 'TP1_HIT';
+
+  /// Two-target plan (engine Session 19): every TP1-banked outcome is a win —
+  /// TP1_HIT (legacy single-target), TP2_HIT (full winner), TP1_BE (runner
+  /// scratched at break-even) and TP1_EXPIRED (runner open at the close).
+  /// result_pct arrives position-weighted from the engine.
+  bool get isWin =>
+      status == 'TP1_HIT' ||
+      status == 'TP2_HIT' ||
+      status == 'TP1_BE' ||
+      status == 'TP1_EXPIRED';
   bool get isLoss => status == 'SL_HIT';
   bool get isExpired => status == 'EXPIRED';
 
-  /// Short badge label for the card/detail (OPEN, TP1, SL, EXPIRED).
+  /// Short badge label for the card/detail.
   String get statusLabel {
     switch (status) {
       case 'TP1_HIT':
         return 'TP1 HIT';
+      case 'TP2_HIT':
+        return 'TP2 HIT';
+      case 'TP1_BE':
+        return 'TP1 + BE';
+      case 'TP1_EXPIRED':
+        return 'TP1 + EXP';
       case 'SL_HIT':
         return 'SL HIT';
       case 'EXPIRED':
@@ -168,6 +185,9 @@ class SessionSummary {
     required this.slCount,
     required this.expiredCount,
     required this.totalPoints,
+    this.tp1BeCount = 0,
+    this.tp2Count = 0,
+    this.tp1ExpiredCount = 0,
     this.totalPct = 0,
     this.avgPct = 0,
   });
@@ -184,16 +204,24 @@ class SessionSummary {
   final int expiredCount;
   final double totalPoints;
 
+  /// Two-target plan outcome counts (0 on rows written before Session 19).
+  final int tp1BeCount;
+  final int tp2Count;
+  final int tp1ExpiredCount;
+
   /// Cross-instrument-comparable P&L: cumulative % across the day's resolved
   /// signals and the average % per signal. Summed raw points are meaningless
   /// across a 46-base universe — % is the honest ledger.
   final double totalPct;
   final double avgPct;
 
-  bool get hasOutcomes => tp1Count + slCount + expiredCount > 0;
-  int get resolvedCount => tp1Count + slCount + expiredCount;
+  /// Wins = every TP1-banked outcome (two-target plan).
+  int get winCount => tp1Count + tp2Count + tp1BeCount + tp1ExpiredCount;
+  int get resolvedCount =>
+      winCount + slCount + expiredCount;
+  bool get hasOutcomes => resolvedCount > 0;
   double get winRate =>
-      resolvedCount == 0 ? 0 : tp1Count / resolvedCount * 100;
+      resolvedCount == 0 ? 0 : winCount / resolvedCount * 100;
 
   static Map<String, int> _decodeGates(dynamic raw) {
     Map<String, dynamic> map = const {};
@@ -220,6 +248,9 @@ class SessionSummary {
       tp1Count: _asInt(json['tp1_count']),
       slCount: _asInt(json['sl_count']),
       expiredCount: _asInt(json['expired_count']),
+      tp1BeCount: _asInt(json['tp1_be_count']),
+      tp2Count: _asInt(json['tp2_count']),
+      tp1ExpiredCount: _asInt(json['tp1_expired_count']),
       totalPoints: _asDouble(json['total_points']),
       totalPct: _asDouble(json['total_pct']),
       avgPct: _asDouble(json['avg_pct']),
@@ -266,9 +297,32 @@ class SignalOutcome {
   final double tp1;
   final String? emittedAt;
 
-  bool get isWin => outcome == 'TP1_HIT';
+  /// TP1-banked outcomes are wins (two-target plan — see IndiaSignal.isWin).
+  bool get isWin =>
+      outcome == 'TP1_HIT' ||
+      outcome == 'TP2_HIT' ||
+      outcome == 'TP1_BE' ||
+      outcome == 'TP1_EXPIRED';
   bool get isLoss => outcome == 'SL_HIT';
   bool get isExpired => outcome == 'EXPIRED';
+
+  /// Short badge label for the outcome row.
+  String get shortLabel {
+    switch (outcome) {
+      case 'TP1_HIT':
+        return 'TP1';
+      case 'TP2_HIT':
+        return 'TP2';
+      case 'TP1_BE':
+        return 'TP1+BE';
+      case 'TP1_EXPIRED':
+        return 'TP1+EXP';
+      case 'SL_HIT':
+        return 'SL';
+      default:
+        return 'EXP';
+    }
+  }
 
   factory SignalOutcome.fromJson(Map<String, dynamic> json) => SignalOutcome(
         signalId: _asString(json['signal_id']),

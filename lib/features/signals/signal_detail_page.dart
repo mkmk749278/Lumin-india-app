@@ -270,6 +270,18 @@ class _LevelsCard extends StatelessWidget {
             label: 'Risk : Reward',
             value: '1 : ${signal.rrRatio.toStringAsFixed(1)}',
           ),
+          if (signal.tp2 > 0) ...[
+            const SizedBox(height: LuminSpacing.md),
+            const Text(
+              'Trade plan: at Target 1, book 50% and move your stop to '
+              'breakeven — the rest runs to Target 2.',
+              style: TextStyle(
+                color: LuminColors.textSecondary,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ],
         ],
       ),
     );
