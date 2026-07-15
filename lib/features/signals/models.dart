@@ -223,6 +223,16 @@ class SessionSummary {
   double get winRate =>
       resolvedCount == 0 ? 0 : winCount / resolvedCount * 100;
 
+  /// Aggregate TP1-banked win rate across a window of daily summaries.
+  /// Sums the full banked win set (not just literal TP1_HIT) so a window
+  /// whose wins all ran to TP2 / trailed to BE / expired past TP1 reports the
+  /// true rate instead of 0%.
+  static double windowWinRate(Iterable<SessionSummary> rows) {
+    final wins = rows.fold<int>(0, (s, r) => s + r.winCount);
+    final resolved = rows.fold<int>(0, (s, r) => s + r.resolvedCount);
+    return resolved == 0 ? 0 : wins / resolved * 100;
+  }
+
   static Map<String, int> _decodeGates(dynamic raw) {
     Map<String, dynamic> map = const {};
     if (raw is Map) {

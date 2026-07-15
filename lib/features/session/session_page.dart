@@ -402,11 +402,12 @@ class _WindowBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totalSignals = rows.fold<int>(0, (s, r) => s + r.signalCount);
-    final totalTp1 = rows.fold<int>(0, (s, r) => s + r.tp1Count);
-    final totalResolved = rows.fold<int>(0, (s, r) => s + r.resolvedCount);
     final totalPct = rows.fold<double>(0.0, (s, r) => s + r.totalPct);
-    final overallWin =
-        totalResolved == 0 ? 0.0 : totalTp1 / totalResolved * 100;
+    // Win = every TP1-banked outcome (TP1_HIT/TP1_BE/TP1_EXPIRED/TP2_HIT), not
+    // just literal TP1_HIT — matches SessionSummary.winRate used by the rows
+    // below. Counting r.tp1Count here read 0% on days where every win ran to
+    // TP2, trailed to BE, or expired past TP1 (e.g. 2026-07-14).
+    final overallWin = SessionSummary.windowWinRate(rows);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
