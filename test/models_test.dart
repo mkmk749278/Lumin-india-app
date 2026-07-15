@@ -196,6 +196,48 @@ void main() {
       expect(s.winRate, closeTo(66.67, 0.01));
     });
 
+    test('window aggregate counts all TP1-banked outcomes (2026-07-14 bug)', () {
+      // A day whose 14 wins all ran to TP2 / trailed to BE / expired past TP1
+      // — zero literal TP1_HIT. The window header must read 25.9%, not 0%.
+      final day = SessionSummary.fromJson({
+        'date': '2026-07-14',
+        'signal_count': 54,
+        'a_plus_count': 5,
+        'b_count': 13,
+        'avg_confidence': 69.0,
+        'total_suppressed': 0,
+        'gates_fired': '{}',
+        'tp1_count': 0,
+        'sl_count': 34,
+        'expired_count': 6,
+        'tp1_be_count': 3,
+        'tp2_count': 4,
+        'tp1_expired_count': 7,
+        'total_points': 0.0,
+        'total_pct': -0.60,
+      });
+      expect(day.winCount, 14);
+      expect(day.resolvedCount, 54);
+      expect(SessionSummary.windowWinRate([day]), closeTo(25.93, 0.01));
+      // Multi-day window aggregates numerator/denominator, not an avg of rates.
+      final other = SessionSummary.fromJson({
+        'date': '2026-07-13',
+        'signal_count': 4,
+        'a_plus_count': 0,
+        'b_count': 4,
+        'avg_confidence': 60.0,
+        'total_suppressed': 0,
+        'gates_fired': '{}',
+        'tp1_count': 2,
+        'sl_count': 2,
+        'expired_count': 0,
+        'total_points': 0.0,
+      });
+      // 16 wins / 58 resolved.
+      expect(SessionSummary.windowWinRate([day, other]), closeTo(27.59, 0.01));
+      expect(SessionSummary.windowWinRate(const []), 0.0);
+    });
+
     test('parses gates_fired when already a map', () {
       final s = SessionSummary.fromJson({
         'date': '2026-07-07',
